@@ -579,7 +579,8 @@ func fetchBookmarks(ctx context.Context, _ *Deps, opts map[string]any) (any, err
 		}
 		cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		req, err := http.NewRequestWithContext(cctx, http.MethodGet, b.CheckURL, nil)
+		target, _ := url.Parse(b.CheckURL)
+		req, err := http.NewRequestWithContext(forHost(cctx, target.Hostname()), http.MethodGet, b.CheckURL, nil)
 		if err != nil {
 			return
 		}

@@ -33,9 +33,14 @@ type Server struct {
 	// Auth, when set, requires a login for every write. Reads stay open.
 	Auth *auth.Auth
 
+	// StatePath, when set, persists readout states across restarts.
+	StatePath string
+
 	// transitions remembers each readout's last state to date its changes.
 	transitionsMu sync.Mutex
 	transitions   map[string]transition
+	loadOnce      sync.Once
+	stats         fetchStats
 }
 
 type transition struct {
@@ -46,6 +51,7 @@ type transition struct {
 // stamp sets item.Since to the moment its state last changed. The first
 // observation after a start has no known date.
 func (s *Server) stamp(item *providers.SummaryItem) {
+	s.loadOnce.Do(s.loadTransitions)
 	s.transitionsMu.Lock()
 	defer s.transitionsMu.Unlock()
 	if s.transitions == nil {
@@ -55,11 +61,14 @@ func (s *Server) stamp(item *providers.SummaryItem) {
 	switch {
 	case !seen:
 		prev = transition{state: item.State}
+		s.transitions[item.Label] = prev
+		s.saveTransitions()
 	case prev.state != item.State:
 		now := time.Now()
 		prev = transition{state: item.State, since: &now}
+		s.transitions[item.Label] = prev
+		s.saveTransitions()
 	}
-	s.transitions[item.Label] = prev
 	item.Since = prev.since
 }
 
@@ -73,6 +82,7 @@ type dataResponse struct {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok\n")) })
+	mux.HandleFunc("GET /metrics", s.getMetrics)
 	mux.HandleFunc("GET /api/config", s.getConfig)
 	mux.HandleFunc("PUT /api/layout", s.guard(s.putLayout))
 	mux.HandleFunc("DELETE /api/layout", s.guard(s.deleteLayout))
@@ -192,6 +202,7 @@ func (s *Server) fetch(typ string, opts map[string]any) cache.Result {
 		defer cancel()
 		started := time.Now()
 		val, err := p.Fetch(ctx, s.Deps, opts)
+		s.stats.record(typ, time.Since(started), err)
 		if err != nil {
 			slog.Warn("widget fetch failed", "type", typ, "error", err, "duration", time.Since(started).Round(time.Millisecond))
 		}

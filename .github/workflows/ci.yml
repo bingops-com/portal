@@ -45,3 +45,9 @@ jobs:
 
       - name: Build the server
         run: CGO_ENABLED=0 go build -trimpath -o /tmp/portal ./cmd/portal
+
+      - name: Interface tests
+        working-directory: web
+        run: |
+          npx playwright install --with-deps chromium
+          npm run e2e

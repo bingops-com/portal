@@ -14,6 +14,7 @@ Un seul binaire Go sert l'API et l'interface React embarquée.
 make run          # build complet, puis http://localhost:3000
 make dev          # API sur :3000 et Vite (rechargement à chaud) sur :5173
 make check        # tests Go, typecheck, go vet
+make e2e          # tests de l'interface dans un navigateur sans écran
 ```
 
 Prérequis : Go 1.25+, Node 20.19+. Hors cluster, les widgets Kubernetes
@@ -38,6 +39,7 @@ PORTAL_VAR_PROMETHEUS_URL=http://localhost:9090 make run
 | `PORTAL_OIDC_CLIENT_ID` | | Identifiant du client public (PKCE, sans secret) |
 | `PORTAL_OIDC_GROUP` | vide | Groupe requis pour modifier ; vide : tout compte authentifié |
 | `PORTAL_PUBLIC_URL` | | Adresse externe du portail ; le fournisseur doit autoriser `<adresse>/auth/callback` |
+| `PORTAL_INTERNAL_HOSTS` | vide | Liste (séparée par des virgules) des seuls hôtes internes que le serveur peut interroger : nom exact ou suffixe commençant par un point (`.svc.cluster.local`). Vide : aucune restriction |
 | `PORTAL_VAR_*` | | Valeurs référencées par `${PORTAL_VAR_NOM}` dans les options |
 
 ### YAML et édition dans le navigateur
@@ -74,6 +76,9 @@ une adresse iCal privée (`PORTAL_VAR_ICAL_URL`).
 | `events` | API Kubernetes (avertissements) | `namespaces`, `limit`, `context` |
 | `argocd` | Applications Argo CD via l'API Kubernetes | `url` (liens), `namespace`, `ignore`, `context` |
 | `activity` | Fil des déploiements, alertes, sauvegardes et redémarrages | `url` (Prometheus, facultatif), `cronjobs`, `hours`, `limit`, `context` |
+| `gameserver` | Requête Steam (A2S) vers un serveur de jeu | `address` (`hôte:port` UDP) |
+| `releases` | Dernières versions de dépôts GitHub | `repos`, `token` (facultatif) |
+| `pulls` | Pull requests ouvertes d'un dépôt GitHub | `repo`, `token` (facultatif), `limit` |
 | `certificates` | Certificats cert-manager via l'API Kubernetes | `warnDays`, `namespaces`, `exclude`, `context` |
 | `backups` | Sauvegardes CloudNativePG (détectées) et CronJobs | `cronjobs` (`namespace/nom`), `maxAgeHours`, `context` |
 | `gatus` | API Gatus | `url`, `publicUrl` |
@@ -104,6 +109,21 @@ alerte, historique d'une métrique sur 3 heures, 24 heures ou 7 jours. Dans le
 mode édition, les listes (flux, liens, métriques, fuseaux) se règlent par
 formulaire.
 
+Autres comportements :
+
+- un brouillon non enregistré est gardé dans le navigateur et proposé à la
+  reprise de l'édition, y compris après une session expirée ;
+- `?kiosk` (ou `?kiosk=45`) masque les commandes et fait tourner les pages
+  toutes les 30 secondes (ou le nombre indiqué), pour un écran mural ;
+- la palette de commandes trouve aussi les workloads et les applications
+  Argo CD, et peut activer une notification du navigateur quand un indicateur
+  passe au rouge ;
+- `/metrics` expose, au format Prometheus, les appels aux sources par type de
+  widget (`portal_fetch_total`, `portal_fetch_duration_seconds_sum`) et l'état
+  de chaque indicateur du bandeau (`portal_readout_state`) ;
+- l'état des indicateurs et la date de leur dernier changement sont conservés
+  dans `PORTAL_DATA/readouts.json`.
+
 ## Sécurité
 
 La lecture est ouverte à qui atteint le portail (LAN et tailnet, via
@@ -116,6 +136,11 @@ l'allowlist Traefik). Pour l'édition, deux modes :
 - sans cette variable, quiconque atteint le portail peut modifier la
   disposition, donc faire interroger au serveur des adresses HTTP de son
   choix. `PORTAL_READONLY=true` fige alors la disposition sur le YAML.
+
+Avec `PORTAL_INTERNAL_HOSTS`, le serveur refuse de se connecter à une adresse
+privée (réseau local, cluster, boucle locale) dont l'hôte n'est pas dans la
+liste, redirections comprises : un éditeur ne peut plus viser un service
+interne arbitraire. Les adresses publiques restent libres.
 
 Dans tous les cas, les requêtes d'écriture venant d'un autre site sont
 refusées, et le compte de service ne lit ni Secrets ni ConfigMaps.

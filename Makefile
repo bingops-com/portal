@@ -1,4 +1,4 @@
-.PHONY: web build run dev test check
+.PHONY: web build run dev test e2e check
 
 web:
 	cd web && npm ci --no-audit --no-fund && npm run build
@@ -17,6 +17,11 @@ dev:
 
 test:
 	go test -race ./...
+
+# Interface tests in a headless browser (PW_CHROMIUM=/usr/bin/chromium to use a system one).
+e2e:
+	@test -d web/dist || (cd web && npm ci --no-audit --no-fund && npm run build)
+	cd web && npm run e2e
 
 check: test
 	cd web && npm run typecheck

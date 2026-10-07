@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Options } from '../api';
-import { ActivityWidget, AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, EventsWidget, GatusWidget, PrometheusWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, gatusBadge, workloadsBadge } from './ops';
+import { ActivityWidget, AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, EventsWidget, GameServerWidget, GatusWidget, PrometheusWidget, PullsWidget, ReleasesWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, gameServerBadge, gatusBadge, pullsBadge, workloadsBadge } from './ops';
 import { CalendarWidget, ClockWidget, MarketsWidget, PostsWidget, RssWidget, SearchWidget, VideosWidget, WeatherWidget, weatherBadge } from './info';
 
 export type Field = {
@@ -122,6 +122,34 @@ const list: WidgetMeta[] = [
       context,
     ],
     component: ActivityWidget,
+  },
+  {
+    type: 'gameserver', label: 'Serveur de jeu', group: 'Ops', refresh: 30,
+    description: 'État, carte et joueurs connectés d’un serveur compatible Steam (Project Zomboid, Valheim…).',
+    defaults: { address: '' },
+    fields: [{ key: 'address', label: 'Adresse du serveur', kind: 'text', placeholder: 'pz.example.com:16261', help: 'Hôte et port UDP de requête, au format hôte:port.' }],
+    component: GameServerWidget, badge: gameServerBadge,
+  },
+  {
+    type: 'releases', label: 'Versions des projets', group: 'Informations', refresh: 3600,
+    description: 'Dernière version publiée des projets GitHub que vous suivez.',
+    defaults: { repos: ['siderolabs/talos', 'argoproj/argo-cd'] },
+    fields: [
+      { key: 'repos', label: 'Dépôts GitHub', kind: 'lines', help: 'Un par ligne, au format propriétaire/nom.' },
+      { key: 'token', label: 'Jeton GitHub', kind: 'text', placeholder: '${PORTAL_VAR_GITHUB_TOKEN}', help: 'Facultatif. Sans jeton, GitHub limite à 60 requêtes par heure.' },
+    ],
+    component: ReleasesWidget,
+  },
+  {
+    type: 'pulls', label: 'Pull requests', group: 'Ops', refresh: 600,
+    description: 'Pull requests ouvertes d’un dépôt GitHub (Renovate, déploiements…).',
+    defaults: { repo: '', limit: 8 },
+    fields: [
+      { key: 'repo', label: 'Dépôt GitHub', kind: 'text', placeholder: 'propriétaire/nom' },
+      { key: 'token', label: 'Jeton GitHub', kind: 'text', placeholder: '${PORTAL_VAR_GITHUB_TOKEN}', help: 'Nécessaire pour un dépôt privé.' },
+      limit('Nombre de pull requests affichées.'),
+    ],
+    component: PullsWidget, badge: pullsBadge,
   },
   {
     type: 'certificates', label: 'Certificats', group: 'Ops', refresh: 300,

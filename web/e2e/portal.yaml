@@ -1,0 +1,24 @@
+# Layout used by the interface tests: only widgets that need no network.
+title: Test Lab
+pages:
+  - name: Accueil
+    columns:
+      - size: small
+        widgets:
+          - { id: clock, type: clock, title: Horloges, options: { zones: [{ label: Tokyo, timezone: Asia/Tokyo }] } }
+      - size: full
+        widgets:
+          - { id: search, type: search }
+          - id: links
+            type: bookmarks
+            title: Applications
+            options:
+              groups:
+                - title: Lab
+                  links:
+                    - { title: Grafana, url: "https://grafana.example" }
+  - name: Outils
+    columns:
+      - size: full
+        widgets:
+          - { id: clock2, type: clock, title: Heure locale }

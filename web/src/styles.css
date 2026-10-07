@@ -1677,3 +1677,70 @@ textarea:focus-visible {
 .modal:has(.list-field) {
   width: min(52rem, calc(100vw - 2rem));
 }
+
+/* --- Kiosk, compact facts, phone band ----------------------------------- */
+
+.facts-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.facts .facts-text {
+  font-size: 1.0625rem;
+  line-height: 1.4;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+a.more {
+  display: inline-block;
+}
+
+.kiosk .band-tools,
+.kiosk .editbar {
+  display: none;
+}
+.kiosk-exit {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 6;
+  height: 2.25rem;
+  padding: 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.kiosk-exit:hover,
+.kiosk-exit:focus-visible {
+  opacity: 1;
+}
+
+/* On a phone the readouts become one swipeable row instead of three lines. */
+@media (max-width: 40rem) {
+  .readouts {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    margin: 0 -1rem;
+    padding: 0 1rem;
+  }
+  .readouts::-webkit-scrollbar {
+    display: none;
+  }
+  .readouts li {
+    width: auto;
+    flex: none;
+    scroll-snap-align: start;
+    padding-right: 0.9rem;
+    margin-right: 0.9rem;
+    border-right: 1px solid rgb(255 255 255 / 0.22);
+  }
+  .readouts li:last-child {
+    border-right: 0;
+  }
+  .readout-detail {
+    white-space: nowrap;
+  }
+}

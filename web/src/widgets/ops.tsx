@@ -159,16 +159,34 @@ export const workloadsBadge = (d: Workloads) => `${d.healthy}/${d.workloads.leng
 type Events = { events: { reason: string; message: string; object: string; namespace: string; count: number; lastSeen: string }[] };
 
 export function EventsWidget({ data }: Props<Events>) {
+  const detail = useDetail();
   if (data.events.length === 0) return <Empty>Aucun avertissement récent dans le cluster.</Empty>;
   return (
     <ul className="rows">
       {data.events.map((e, i) => (
         <li key={i} className="row row-top">
           <div className="row-main">
-            <span className="row-title">
+            <Open
+              onOpen={
+                detail
+                  ? () =>
+                      detail({
+                        title: e.reason,
+                        subtitle: `${e.namespace}/${e.object}`,
+                        load: async () => ({
+                          facts: [
+                            { label: 'Dernière occurrence', value: new Date(e.lastSeen).toLocaleString('fr-FR') },
+                            { label: 'Occurrences', value: String(Math.max(1, e.count)) },
+                          ],
+                          sections: [{ title: 'Message', rows: [{ title: e.message }] }],
+                        }),
+                      })
+                  : undefined
+              }
+            >
               {e.reason}
               {e.count > 1 && <span className="count">×{e.count}</span>}
-            </span>
+            </Open>
             <span className="row-sub">
               {e.namespace}/{e.object}
             </span>
@@ -243,10 +261,11 @@ export const argoBadge = (d: Argo) => `${d.healthy}/${d.tracked} à jour`;
 type Gatus = {
   up: number;
   url?: string;
-  endpoints: { name: string; group: string; up: boolean; uptime: number; ms: number; url?: string; results: { ok: boolean; ms: number; t: string }[] }[];
+  endpoints: { name: string; group: string; key: string; up: boolean; uptime: number; window: string; ms: number; url?: string; results: { ok: boolean; ms: number; t: string }[] }[];
 };
 
-export function GatusWidget({ data }: Props<Gatus>) {
+export function GatusWidget({ data, widgetId }: Props<Gatus>) {
+  const detail = useDetail();
   if (data.endpoints.length === 0) return <Empty>Gatus ne surveille encore aucun endpoint.</Empty>;
   const groups = new Map<string, Gatus['endpoints']>();
   for (const e of data.endpoints) groups.set(e.group, [...(groups.get(e.group) ?? []), e]);
@@ -260,15 +279,17 @@ export function GatusWidget({ data }: Props<Gatus>) {
               <li key={e.name} className="row row-wrap">
                 <Mark state={e.up ? 'ok' : 'down'} label={e.up ? 'En ligne' : 'Hors ligne'} />
                 <div className="row-main">
-                  {e.url ? (
-                    <a className="row-title" {...ext(e.url)}>
-                      {e.name}
-                    </a>
-                  ) : (
-                    <span className="row-title">{e.name}</span>
-                  )}
+                  <Open
+                    onOpen={
+                      detail
+                        ? () => detail({ title: e.name, subtitle: `Disponibilité ${formatStat(e.uptime, 'percent')} (${e.window})`, load: () => api.detail<DetailData>(widgetId, { key: e.key }) })
+                        : undefined
+                    }
+                  >
+                    {e.name}
+                  </Open>
                 </div>
-                <span className="row-aside">
+                <span className="row-aside" title={`Disponibilité sur ${e.window}`}>
                   {formatStat(e.uptime, 'percent')}
                   <small>{Math.round(e.ms)} ms</small>
                 </span>
@@ -432,7 +453,8 @@ type Certificates = {
 
 const daysLeft = (date?: string) => (date ? Math.floor((new Date(date).getTime() - Date.now()) / 86_400_000) : null);
 
-export function CertificatesWidget({ data, options }: Props<Certificates>) {
+export function CertificatesWidget({ data, options, widgetId }: Props<Certificates>) {
+  const detail = useDetail();
   if (data.certificates.length === 0) return <Empty>Aucun certificat cert-manager dans les namespaces sélectionnés.</Empty>;
   return (
     <More items={data.certificates} limit={Number(options.limit) || 8}>
@@ -444,7 +466,15 @@ export function CertificatesWidget({ data, options }: Props<Certificates>) {
               <li key={`${c.namespace}/${c.name}`} className="row">
                 <Mark state={c.state} label={c.state === 'ok' ? 'Valide' : c.state === 'warn' ? 'Expire bientôt' : 'À traiter'} />
                 <div className="row-main">
-                  <span className="row-title">{c.host || c.name}</span>
+                  <Open
+                    onOpen={
+                      detail
+                        ? () => detail({ title: c.host || c.name, subtitle: 'Certificat cert-manager', load: () => api.detail<DetailData>(widgetId, { namespace: c.namespace, name: c.name }) })
+                        : undefined
+                    }
+                  >
+                    {c.host || c.name}
+                  </Open>
                   <span className="row-sub">{c.namespace}</span>
                 </div>
                 <span className="row-aside">
@@ -469,14 +499,23 @@ type Backups = {
   backups: { kind: string; namespace: string; name: string; lastSuccess?: string; detail?: string; state: State }[];
 };
 
-export function BackupsWidget({ data }: Props<Backups>) {
+export function BackupsWidget({ data, widgetId }: Props<Backups>) {
+  const detail = useDetail();
   return (
     <ul className="rows">
       {data.backups.map((b) => (
         <li key={`${b.kind}/${b.namespace}/${b.name}`} className="row row-top">
           <Mark state={b.state} label={b.state === 'ok' ? 'À jour' : b.state === 'unknown' ? 'En attente' : 'En retard'} />
           <div className="row-main">
-            <span className="row-title">{b.name}</span>
+            <Open
+              onOpen={
+                detail
+                  ? () => detail({ title: b.name, subtitle: `Sauvegarde ${b.kind}`, load: () => api.detail<DetailData>(widgetId, { kind: b.kind, namespace: b.namespace, name: b.name }) })
+                  : undefined
+              }
+            >
+              {b.name}
+            </Open>
             <span className="row-sub">
               {b.kind}, {b.namespace}
             </span>
@@ -521,3 +560,109 @@ export function ActivityWidget({ data }: Props<Activity>) {
     </ol>
   );
 }
+
+// --- Game server ---
+
+type GameServer = { online: boolean; name?: string; map?: string; game?: string; players: number; max: number; names: string[] };
+
+export function GameServerWidget({ data }: Props<GameServer>) {
+  if (!data.online) {
+    return (
+      <div className="row">
+        <Mark state="down" label="Hors ligne" />
+        <div className="row-main">
+          <span className="row-title">Serveur hors ligne</span>
+          <span className="row-sub">Aucune réponse à la requête de statut.</span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <>
+      <dl className="facts facts-2">
+        <div>
+          <dt>Joueurs</dt>
+          <dd>
+            <AnimatedNumber value={data.players} format={(n) => String(Math.round(n))} />/{data.max}
+          </dd>
+        </div>
+        <div>
+          <dt>Carte</dt>
+          <dd className="facts-text">{data.map || 'n/d'}</dd>
+        </div>
+      </dl>
+      <div className="row">
+        <Mark state="ok" label="En ligne" />
+        <div className="row-main">
+          <span className="row-title">{data.name}</span>
+          <span className="row-sub">{data.game}</span>
+        </div>
+      </div>
+      {data.names.length > 0 && <p className="note">En jeu : {data.names.join(', ')}</p>}
+    </>
+  );
+}
+export const gameServerBadge = (d: GameServer) => (d.online ? 'en ligne' : 'hors ligne');
+
+// --- GitHub releases and pull requests ---
+
+type Releases = { failed: number; releases: { repo: string; tag: string; url: string; published: string }[] };
+
+export function ReleasesWidget({ data }: Props<Releases>) {
+  const fresh = (date: string) => Date.now() - new Date(date).getTime() < 7 * 86_400_000;
+  return (
+    <>
+      <ul className="rows">
+        {data.releases.map((r) => (
+          <li key={r.repo} className="row">
+            <div className="row-main">
+              <a className="row-title" {...ext(r.url)}>
+                {r.repo.split('/')[1]}
+              </a>
+              <span className="row-sub">{r.repo.split('/')[0]}</span>
+            </div>
+            {fresh(r.published) && <span className="tag tag-ok">Nouveau</span>}
+            <span className="row-aside">
+              {r.tag}
+              <small>{age(r.published)}</small>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {data.failed > 0 && <p className="note">{data.failed > 1 ? `${data.failed} dépôts sont illisibles ou sans release.` : 'Un dépôt est illisible ou sans release.'}</p>}
+    </>
+  );
+}
+
+type Pulls = { total: number; url: string; pulls: { number: number; title: string; author: string; url: string; created: string; draft: boolean; labels: string[] }[] };
+
+export function PullsWidget({ data }: Props<Pulls>) {
+  if (data.pulls.length === 0) return <Empty>Aucune pull request ouverte.</Empty>;
+  return (
+    <>
+      <ul className="rows">
+        {data.pulls.map((p) => (
+          <li key={p.number} className="row row-top">
+            <span className="points">#{p.number}</span>
+            <div className="row-main">
+              <a className="row-title wrap" {...ext(p.url)}>
+                {p.title}
+              </a>
+              <span className="row-sub">
+                {p.author}
+                {p.draft ? ', brouillon' : ''}
+              </span>
+            </div>
+            <span className="row-aside">{age(p.created)}</span>
+          </li>
+        ))}
+      </ul>
+      {data.total > data.pulls.length && (
+        <a className="more" {...ext(data.url)}>
+          Voir les {data.total} pull requests ouvertes
+        </a>
+      )}
+    </>
+  );
+}
+export const pullsBadge = (d: Pulls) => `${d.total} ouvertes`;

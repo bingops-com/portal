@@ -3,7 +3,7 @@ import { Command as CommandIcon, Download, LogOut, Monitor, Moon, PencilLine, Pl
 import { stringify } from 'yaml';
 import { api, type Page, type PortalConfig, type SummaryItem } from './api';
 import { Mark } from './components/bits';
-import { DetailDrawer, DetailProvider, type DetailRequest } from './components/Detail';
+import { DetailDrawer, DetailProvider, type DetailData, type DetailRequest } from './components/Detail';
 import { PageEditor, PageView } from './components/PageView';
 import { Palette, type Command } from './components/Palette';
 import { ago } from './format';
@@ -94,6 +94,33 @@ function useChanged(items: SummaryItem[]): Set<string> {
   return changed;
 }
 
+// Browser storage is a convenience: every access tolerates it being absent.
+const store = {
+  get(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set(key: string, value: string | null) {
+    try {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    } catch {
+      /* nothing to keep it in */
+    }
+  },
+};
+
+// ?kiosk or ?kiosk=45 hides the controls and rotates the pages (seconds).
+function kioskSeconds(): number {
+  const raw = new URLSearchParams(window.location.search).get('kiosk');
+  if (raw === null) return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 10 ? n : 30;
+}
+
 const themeLabels: Record<Theme, string> = { auto: 'Thème : système', light: 'Thème : clair', dark: 'Thème : sombre' };
 
 export function App() {
@@ -110,6 +137,9 @@ export function App() {
   const changed = useChanged(summary);
   const [palette, setPalette] = useState(false);
   const [detail, setDetail] = useState<DetailRequest | null>(null);
+  const [kiosk, setKiosk] = useState(kioskSeconds);
+  const [notify, setNotify] = useState(() => store.get('portal-notify') === 'on' && 'Notification' in window && Notification.permission === 'granted');
+  const [found, setFound] = useState<Command[]>([]);
   const worst = summary.reduce<SummaryItem['state']>((w, s) => (rank[s.state] > rank[w] ? s.state : w), 'ok');
   const troubled = summary.filter((s) => s.state === 'warn' || s.state === 'down').length;
 
@@ -135,6 +165,32 @@ export function App() {
   useEffect(() => setFavicon(stateColors[worst]), [worst]);
 
   useEffect(() => {
+    if (!notify || !('Notification' in window) || Notification.permission !== 'granted') return;
+    for (const s of summary) {
+      if (changed.has(s.label) && s.state === 'down') new Notification(`${s.label} : en panne`, { body: s.detail, tag: s.label });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changed]);
+
+  useEffect(() => {
+    document.body.classList.toggle('kiosk', kiosk > 0);
+    if (!kiosk || !config || config.pages.length < 2) return;
+    const timer = setInterval(() => {
+      setSlug((current) => {
+        const list = config.pages;
+        const next = list[(Math.max(0, list.findIndex((p) => p.slug === current)) + 1) % list.length];
+        return next === list[0] ? '' : next.slug;
+      });
+    }, kiosk * 1000);
+    return () => clearInterval(timer);
+  }, [kiosk, config]);
+
+  // The unsaved layout survives a reload or an expired session.
+  useEffect(() => {
+    if (draft && config && JSON.stringify(draft) !== JSON.stringify(config.pages)) store.set('portal-draft', JSON.stringify(draft));
+  }, [draft, config]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -157,9 +213,16 @@ export function App() {
   };
 
   const startEdit = () => {
-    setDraft(structuredClone(config!.pages));
-    setDraftIndex(viewIndex);
-    setNotice('');
+    let pending: Page[] | null = null;
+    try {
+      const saved = JSON.parse(store.get('portal-draft') ?? 'null');
+      if (Array.isArray(saved) && saved.length > 0 && JSON.stringify(saved) !== JSON.stringify(config!.pages)) pending = saved;
+    } catch {
+      /* an unreadable draft is ignored */
+    }
+    setDraft(pending ?? structuredClone(config!.pages));
+    setDraftIndex(Math.min(viewIndex, (pending ?? config!.pages).length - 1));
+    setNotice(pending ? 'Brouillon non enregistré restauré. « Annuler » le supprime.' : '');
   };
   const needsLogin = Boolean(config?.loginRequired && !config.user);
   const loginUrl = `/auth/login?return=${encodeURIComponent(`${window.location.pathname}#edit`)}`;
@@ -172,6 +235,7 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config === null]);
   const stopEdit = (next?: PortalConfig) => {
+    store.set('portal-draft', null);
     setDraft(null);
     setConfirmDelete(false);
     if (next) {
@@ -194,7 +258,7 @@ export function App() {
       .catch((err: Error) =>
         setNotice(
           /connexion requise/.test(err.message)
-            ? 'Votre session a expiré. Exportez la disposition en YAML pour ne rien perdre, puis reconnectez-vous.'
+            ? 'Votre session a expiré. Le brouillon est conservé dans ce navigateur : reconnectez-vous, il sera restauré.'
             : `Enregistrement impossible : ${err.message}`,
         ),
       )
@@ -238,6 +302,70 @@ export function App() {
     }, 80);
   };
 
+  const enterKiosk = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('kiosk', '30');
+    window.history.replaceState(null, '', url);
+    setKiosk(30);
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  };
+  const leaveKiosk = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('kiosk');
+    window.history.replaceState(null, '', url);
+    setKiosk(0);
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  };
+  const toggleNotify = async (on: boolean) => {
+    if (on && Notification.permission !== 'granted' && (await Notification.requestPermission()) !== 'granted') {
+      setNotice('Le navigateur a refusé les notifications pour ce site.');
+      return;
+    }
+    store.set('portal-notify', on ? 'on' : null);
+    setNotify(on);
+    setNotice(on ? 'Notifications activées dans ce navigateur.' : 'Notifications désactivées.');
+  };
+
+  // Opening the palette also indexes workloads and Argo CD applications, so
+  // they can be found by name and opened in the detail panel.
+  useEffect(() => {
+    if (!palette || !config) return;
+    let live = true;
+    const widgets = config.pages.flatMap((p) => p.columns.flatMap((c) => c.widgets));
+    const pick = (type: string) => widgets.find((w) => w.type === type);
+    const jobs: Promise<Command[]>[] = [];
+    const wl = pick('workloads');
+    if (wl) {
+      jobs.push(
+        api.data<{ workloads: { kind: string; namespace: string; name: string }[] }>(wl.id).then((r) =>
+          (r.data?.workloads ?? []).map((w) => ({
+            label: w.name,
+            hint: `Workload, ${w.namespace}`,
+            run: () => setDetail({ title: w.name, subtitle: `${w.kind} dans ${w.namespace}`, load: () => api.detail<DetailData>(wl.id, { kind: w.kind, namespace: w.namespace, name: w.name }) }),
+          })),
+        ),
+      );
+    }
+    const argo = pick('argocd');
+    if (argo) {
+      jobs.push(
+        api.data<{ apps: { name: string }[] }>(argo.id).then((r) =>
+          (r.data?.apps ?? []).map((a) => ({
+            label: a.name,
+            hint: 'Application Argo CD',
+            run: () => setDetail({ title: a.name, subtitle: 'Application Argo CD', linkLabel: 'Ouvrir dans Argo CD', load: () => api.detail<DetailData>(argo.id, { name: a.name }) }),
+          })),
+        ),
+      );
+    }
+    Promise.allSettled(jobs).then((results) => {
+      if (live) setFound(results.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])));
+    });
+    return () => {
+      live = false;
+    };
+  }, [palette, config]);
+
   const commands = useMemo<Command[]>(() => {
     if (!config) return [];
     const list: Command[] = pages.map((p, i) => ({ label: p.name, hint: 'Page', run: () => go(i) }));
@@ -248,6 +376,19 @@ export function App() {
             for (const g of w.options?.groups ?? [])
               for (const l of g.links ?? []) if (l.url) list.push({ label: l.title, hint: g.title || 'Lien', run: () => window.open(l.url, '_blank', 'noreferrer') });
     list.push({ label: 'Changer de thème', hint: 'Action', run: cycleTheme });
+    list.push(
+      kiosk
+        ? { label: 'Quitter le mode kiosque', hint: 'Action', run: () => leaveKiosk() }
+        : { label: 'Mode kiosque (plein écran, rotation des pages)', hint: 'Action', run: () => enterKiosk() },
+    );
+    if ('Notification' in window) {
+      list.push(
+        notify
+          ? { label: 'Désactiver les notifications', hint: 'Action', run: () => toggleNotify(false) }
+          : { label: 'Me notifier quand un indicateur passe au rouge', hint: 'Action', run: () => toggleNotify(true) },
+      );
+    }
+    list.push(...found);
     if (!config.readOnly && !draft) {
       list.push(
         config.loginRequired && !config.user
@@ -258,7 +399,7 @@ export function App() {
     if (config.user) list.push({ label: 'Se déconnecter', hint: 'Action', run: () => window.location.assign('/auth/logout') });
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, pages, draft, theme, index]);
+  }, [config, pages, draft, theme, index, kiosk, notify, found]);
 
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
   const dirty = useMemo(() => draft !== null && JSON.stringify(draft) !== JSON.stringify(config?.pages), [draft, config]);
@@ -383,6 +524,11 @@ export function App() {
         </p>
       )}
 
+      {kiosk > 0 && (
+        <button className="kiosk-exit" onClick={leaveKiosk}>
+          Quitter le mode kiosque
+        </button>
+      )}
       {palette && <Palette commands={commands} onClose={() => setPalette(false)} />}
 
       {detail && <DetailDrawer request={detail} onClose={() => setDetail(null)} />}

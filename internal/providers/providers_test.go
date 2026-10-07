@@ -1,7 +1,9 @@
 package providers
 
 import (
+	"bytes"
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -613,5 +615,86 @@ func TestPrometheusDetailReturnsTimedPoints(t *testing.T) {
 		if _, err := prometheusDetail(context.Background(), nil, opts, url.Values{"stat": {stat}}); err == nil {
 			t.Errorf("stat=%q accepted", stat)
 		}
+	}
+}
+
+func TestInternalHostsGuard(t *testing.T) {
+	base := serve(t, map[string]string{"/x": "ok"}) // listens on 127.0.0.1
+	t.Cleanup(func() { SetInternalHosts(nil) })
+
+	SetInternalHosts([]string{".svc.cluster.local"})
+	if _, err := getBytes(context.Background(), base+"/x"); err == nil || !strings.Contains(err.Error(), "interne") {
+		t.Fatalf("a private address must be refused when its host is not listed: %v", err)
+	}
+	SetInternalHosts([]string{"127.0.0.1"})
+	if _, err := getBytes(context.Background(), base+"/x"); err != nil {
+		t.Fatalf("a listed host must be reachable: %v", err)
+	}
+	for host, want := range map[string]bool{"a.svc.cluster.local": true, "svc.cluster.local": false, "evil.example": false, "127.0.0.1": false} {
+		SetInternalHosts([]string{".svc.cluster.local"})
+		if internalAllowed(host) != want {
+			t.Errorf("internalAllowed(%q) != %v", host, want)
+		}
+	}
+}
+
+func TestGameServerQuery(t *testing.T) {
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	go func() {
+		buf := make([]byte, 1500)
+		for {
+			n, addr, err := conn.ReadFrom(buf)
+			if err != nil {
+				return
+			}
+			req := buf[:n]
+			challenged := bytes.HasSuffix(req, []byte{1, 2, 3, 4})
+			switch {
+			case !challenged:
+				conn.WriteTo([]byte("\xff\xff\xff\xffA\x01\x02\x03\x04"), addr)
+			case req[4] == 'T':
+				conn.WriteTo([]byte("\xff\xff\xff\xffI\x11My Server\x00Muldraugh\x00zomboid\x00Project Zomboid\x00\x00\x00\x02\x20\x00dl\x00\x00"), addr)
+			case req[4] == 'U':
+				conn.WriteTo([]byte("\xff\xff\xff\xffD\x02\x00alice\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01bob\x00\x00\x00\x00\x00\x00\x00\x00\x00"), addr)
+			}
+		}
+	}()
+	out, err := fetchGameServer(context.Background(), nil, map[string]any{"address": conn.LocalAddr().String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs := out.(gameServer)
+	if !gs.Online || gs.Name != "My Server" || gs.Map != "Muldraugh" || gs.Players != 2 || gs.Max != 32 || strings.Join(gs.Names, ",") != "alice,bob" {
+		t.Fatalf("%+v", gs)
+	}
+
+	silent, _ := net.ListenPacket("udp", "127.0.0.1:0")
+	addr := silent.LocalAddr().String()
+	silent.Close()
+	out, err = fetchGameServer(context.Background(), nil, map[string]any{"address": addr})
+	if err != nil || out.(gameServer).Online {
+		t.Fatalf("a silent server is offline, not an error: %+v %v", out, err)
+	}
+}
+
+func TestGatusUsesSevenDayUptimeWhenAvailable(t *testing.T) {
+	base := serve(t, map[string]string{
+		"/api/v1/endpoints/statuses":         `[{"name":"web","group":"g","key":"g_web","results":[{"success":true,"duration":1000000,"timestamp":"2026-01-01T00:00:00Z"}]},{"name":"api","group":"g","key":"g_api","results":[{"success":true,"duration":1000000,"timestamp":"2026-01-01T00:00:00Z"}]}]`,
+		"/api/v1/endpoints/g_web/uptimes/7d": `0.9871`,
+	})
+	out, err := fetchGatus(context.Background(), nil, map[string]any{"url": base})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eps := out.(gatusResult).Endpoints
+	if eps[1].Name != "web" || eps[1].Window != "7 j" || eps[1].Uptime < 98.7 || eps[1].Uptime > 98.72 {
+		t.Errorf("web = %+v", eps[1])
+	}
+	if eps[0].Window != "récent" || eps[0].Uptime != 100 {
+		t.Errorf("api = %+v", eps[0])
 	}
 }

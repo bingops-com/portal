@@ -511,10 +511,14 @@ type gatusCheck struct {
 }
 
 type gatusEndpoint struct {
-	Name    string       `json:"name"`
-	Group   string       `json:"group"`
-	Up      bool         `json:"up"`
+	Name  string `json:"name"`
+	Group string `json:"group"`
+	Key   string `json:"key"`
+	Up    bool   `json:"up"`
+	// Uptime is over 7 days when Gatus keeps history, otherwise over the
+	// recent checks; Window says which.
 	Uptime  float64      `json:"uptime"`
+	Window  string       `json:"window"`
 	Millis  float64      `json:"ms"`
 	Results []gatusCheck `json:"results"`
 	URL     string       `json:"url,omitempty"`
@@ -561,7 +565,7 @@ func fetchGatus(ctx context.Context, _ *Deps, opts map[string]any) (any, error) 
 	public := trimSlash(o.PublicURL)
 	res := gatusResult{Endpoints: []gatusEndpoint{}, URL: public}
 	for _, r := range raw {
-		ep := gatusEndpoint{Name: r.Name, Group: r.Group, Results: []gatusCheck{}}
+		ep := gatusEndpoint{Name: r.Name, Group: r.Group, Key: r.Key, Window: "récent", Results: []gatusCheck{}}
 		if public != "" {
 			ep.URL = public + "/endpoints/" + url.PathEscape(r.Key)
 		}
@@ -586,6 +590,19 @@ func fetchGatus(ctx context.Context, _ *Deps, opts map[string]any) (any, error) 
 		}
 		res.Endpoints = append(res.Endpoints, ep)
 	}
+	// Gatus answers this only with persistent storage; otherwise keep the
+	// figure computed from the recent checks.
+	base := trimSlash(o.URL)
+	parallel(len(res.Endpoints), 6, func(i int) {
+		ep := &res.Endpoints[i]
+		body, err := getBytes(ctx, base+"/api/v1/endpoints/"+url.PathEscape(ep.Key)+"/uptimes/7d")
+		if err != nil {
+			return
+		}
+		if ratio, err := strconv.ParseFloat(strings.TrimSpace(string(body)), 64); err == nil && ratio >= 0 && ratio <= 1 {
+			ep.Uptime, ep.Window = ratio*100, "7 j"
+		}
+	})
 	sort.SliceStable(res.Endpoints, func(a, b int) bool {
 		if res.Endpoints[a].Group != res.Endpoints[b].Group {
 			return res.Endpoints[a].Group < res.Endpoints[b].Group

@@ -191,3 +191,31 @@ func TestStampDatesOnlyObservedStateChanges(t *testing.T) {
 		t.Fatal("the date must be kept while the state holds")
 	}
 }
+
+func TestReadoutStatesSurviveARestartAndFeedMetrics(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "readouts.json")
+	first := &Server{StatePath: path}
+	item := providers.SummaryItem{Label: "Cluster", State: "ok"}
+	first.stamp(&item)
+	item.State = "down"
+	first.stamp(&item)
+	changed := *item.Since
+
+	second := &Server{StatePath: path}
+	again := providers.SummaryItem{Label: "Cluster", State: "down"}
+	second.stamp(&again)
+	if again.Since == nil || !again.Since.Equal(changed) {
+		t.Fatalf("change date lost across restart: %v", again.Since)
+	}
+
+	second.stats.record("rss", 0, nil)
+	second.stats.record("rss", 0, os.ErrNotExist)
+	rec := httptest.NewRecorder()
+	second.getMetrics(rec, httptest.NewRequest("GET", "/metrics", nil))
+	body := rec.Body.String()
+	for _, want := range []string{`portal_readout_state{readout="Cluster"} 3`, `portal_fetch_total{type="rss",result="ok"} 1`, `portal_fetch_total{type="rss",result="error"} 1`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("metrics miss %q in:\n%s", want, body)
+		}
+	}
+}

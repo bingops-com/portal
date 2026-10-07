@@ -12,7 +12,7 @@ export function Palette({ commands, onClose }: { commands: Command[]; onClose: (
   const [active, setActive] = useState(0);
   const matches = useMemo(() => {
     const words = fold(query).split(/\s+/).filter(Boolean);
-    return commands.filter((c) => words.every((w) => fold(`${c.label} ${c.hint}`).includes(w))).slice(0, 12);
+    return commands.filter((c) => words.every((w) => fold(`${c.label} ${c.hint}`).includes(w))).slice(0, 14);
   }, [commands, query]);
 
   useEffect(() => {

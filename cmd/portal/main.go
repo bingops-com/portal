@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -35,11 +37,15 @@ func main() {
 	}
 
 	srv := &server.Server{
-		Store:    store,
-		Deps:     &providers.Deps{Kube: providers.NewKubeClients()},
-		Cache:    cache.New(),
-		Assets:   web.Assets(),
-		ReadOnly: os.Getenv("PORTAL_READONLY") == "true",
+		Store:     store,
+		Deps:      &providers.Deps{Kube: providers.NewKubeClients()},
+		Cache:     cache.New(),
+		Assets:    web.Assets(),
+		ReadOnly:  os.Getenv("PORTAL_READONLY") == "true",
+		StatePath: filepath.Join(env("PORTAL_DATA", "data"), "readouts.json"),
+	}
+	if hosts := os.Getenv("PORTAL_INTERNAL_HOSTS"); hosts != "" {
+		providers.SetInternalHosts(strings.Split(hosts, ","))
 	}
 	if issuer := os.Getenv("PORTAL_OIDC_ISSUER"); issuer != "" {
 		login, err := auth.New(auth.Config{
