@@ -41,6 +41,7 @@ export const api = {
   summary: (signal?: AbortSignal) => request<{ items: SummaryItem[] }>('/api/summary', { signal }),
   data: <T,>(id: string, signal?: AbortSignal) =>
     request<DataResponse<T>>(`/api/data/${encodeURIComponent(id)}`, { signal }),
+  detail: <T,>(id: string, params: Record<string, string>) => request<T>(`/api/detail/${encodeURIComponent(id)}?${new URLSearchParams(params)}`),
   preview: <T,>(type: string, options: Options | undefined, signal?: AbortSignal) =>
     request<DataResponse<T>>('/api/preview', { ...json('POST', { type, options: options ?? {} }), signal }),
 };

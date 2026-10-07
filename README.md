@@ -79,7 +79,7 @@ une adresse iCal privée (`PORTAL_VAR_ICAL_URL`).
 | `gatus` | API Gatus | `url`, `publicUrl` |
 | `prometheus` | PromQL | `url`, `stats: [{label, query, format, warn, danger, sparkline}]` |
 | `alerts` | Alertes Prometheus en cours | `url`, `ignore` |
-| `bookmarks` | Liens, sonde HTTP facultative | `groups: [{title, links: [{title, url, description, checkUrl}]}]` |
+| `bookmarks` | Liens, sonde HTTP facultative | `groups: [{title, links: [{title, url, description, icon, checkUrl}]}]` ; `icon` vaut `si:<nom>` (Simple Icons, chargée depuis leur CDN par le navigateur) ou l'adresse d'une image |
 | `rss` | RSS / Atom | `feeds: [{title, url}]`, `limit` |
 | `videos` | Flux YouTube | `channels` (identifiants `UC…`), `limit` |
 | `markets` | CoinGecko | `coins`, `currency` |
@@ -97,6 +97,12 @@ qui change d'état s'anime une fois et affiche depuis quand ; un clic amène au
 widget concerné. Le liseré du bandeau, l'icône et le titre de l'onglet
 reflètent le pire état. `Ctrl+K` ouvre la palette de commandes (pages, liens
 des widgets `bookmarks`, thème, édition).
+
+Un clic sur une ligne ouvre un panneau de détail : pods et événements d'un
+workload, ressources à traiter d'une application Argo CD, étiquettes d'une
+alerte, historique d'une métrique sur 3 heures, 24 heures ou 7 jours. Dans le
+mode édition, les listes (flux, liens, métriques, fuseaux) se règlent par
+formulaire.
 
 ## Sécurité
 

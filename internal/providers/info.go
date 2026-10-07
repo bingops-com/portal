@@ -545,6 +545,7 @@ type bookmark struct {
 	URL         string `json:"url"`
 	CheckURL    string `json:"checkUrl,omitempty"`
 	Description string `json:"description,omitempty"`
+	Icon        string `json:"icon,omitempty"`   // "si:<slug>" or an image URL
 	Status      string `json:"status,omitempty"` // up | down
 	Millis      int64  `json:"ms,omitempty"`
 }

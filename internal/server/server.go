@@ -77,6 +77,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/layout", s.guard(s.putLayout))
 	mux.HandleFunc("DELETE /api/layout", s.guard(s.deleteLayout))
 	mux.HandleFunc("GET /api/data/{id}", s.getData)
+	mux.HandleFunc("GET /api/detail/{id}", s.getDetail)
 	mux.HandleFunc("POST /api/preview", s.guard(s.postPreview))
 	mux.HandleFunc("GET /api/summary", s.getSummary)
 	if s.Auth != nil {
@@ -223,6 +224,40 @@ func (s *Server) getData(w http.ResponseWriter, r *http.Request) {
 					writeJSON(w, http.StatusOK, toResponse(s.fetch(wd.Type, wd.Options)))
 					return
 				}
+			}
+		}
+	}
+	writeError(w, http.StatusNotFound, "widget introuvable")
+}
+
+// getDetail loads the side panel of one row of a configured widget.
+func (s *Server) getDetail(w http.ResponseWriter, r *http.Request) {
+	cfg, _, err := s.Store.Effective()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	id := r.PathValue("id")
+	for _, p := range cfg.Pages {
+		for _, c := range p.Columns {
+			for _, wd := range c.Widgets {
+				if wd.ID != id {
+					continue
+				}
+				load, ok := providers.Details[wd.Type]
+				if !ok {
+					writeError(w, http.StatusNotFound, "ce widget n'a pas de détail")
+					return
+				}
+				ctx, cancel := context.WithTimeout(r.Context(), fetchTimeout)
+				defer cancel()
+				detail, err := load(ctx, s.Deps, wd.Options, r.URL.Query())
+				if err != nil {
+					writeError(w, http.StatusBadGateway, err.Error())
+					return
+				}
+				writeJSON(w, http.StatusOK, detail)
+				return
 			}
 		}
 	}

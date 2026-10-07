@@ -6,10 +6,14 @@ import { CalendarWidget, ClockWidget, MarketsWidget, PostsWidget, RssWidget, Sea
 export type Field = {
   key: string;
   label: string;
-  kind: 'text' | 'number' | 'bool' | 'select' | 'lines' | 'yaml';
+  kind: 'text' | 'number' | 'bool' | 'select' | 'lines' | 'yaml' | 'list';
   help?: string;
   placeholder?: string;
   choices?: [string, string][];
+  // For `list`: the fields of each entry (text, number, select or a nested list).
+  item?: Field[];
+  itemName?: string;
+  wide?: boolean;
 };
 
 export type WidgetMeta = {
@@ -21,7 +25,7 @@ export type WidgetMeta = {
   refresh: number;
   defaults: Options;
   fields: Field[];
-  component: ComponentType<{ data: any; options: Options }>;
+  component: ComponentType<{ data: any; options: Options; widgetId: string }>;
   badge?: (data: any) => string;
 };
 
@@ -86,7 +90,16 @@ const list: WidgetMeta[] = [
     },
     fields: [
       promUrl,
-      { key: 'stats', label: 'Requêtes', kind: 'yaml', help: 'Liste de { label, query, format, warn, danger }. Formats : percent, number, bytes, duration.' },
+      {
+        key: 'stats', label: 'Métriques', kind: 'list', itemName: 'une métrique',
+        item: [
+          { key: 'label', label: 'Nom', kind: 'text', placeholder: 'CPU' },
+          { key: 'format', label: 'Format', kind: 'select', choices: [['number', 'Nombre'], ['percent', 'Pourcentage'], ['bytes', 'Octets'], ['duration', 'Durée (secondes)']] },
+          { key: 'query', label: 'Requête PromQL', kind: 'text', wide: true },
+          { key: 'warn', label: 'Seuil d’avertissement', kind: 'number' },
+          { key: 'danger', label: 'Seuil critique', kind: 'number' },
+        ],
+      },
     ],
     component: PrometheusWidget,
   },
@@ -138,14 +151,31 @@ const list: WidgetMeta[] = [
     type: 'bookmarks', label: 'Applications et liens', group: 'Outils', refresh: 60,
     description: 'Liens groupés vers vos applications, avec vérification de disponibilité facultative.',
     defaults: { groups: [{ title: 'Lab', links: [{ title: 'Exemple', url: 'https://example.com', description: 'Description', checkUrl: '' }] }] },
-    fields: [{ key: 'groups', label: 'Groupes de liens', kind: 'yaml', help: 'Liste de { title, links: [{ title, url, description, checkUrl }] }. checkUrl est interrogée par le serveur.' }],
+    fields: [
+      {
+        key: 'groups', label: 'Groupes', kind: 'list', itemName: 'un groupe',
+        item: [
+          { key: 'title', label: 'Nom du groupe', kind: 'text', wide: true },
+          {
+            key: 'links', label: 'Liens', kind: 'list', itemName: 'un lien',
+            item: [
+              { key: 'title', label: 'Nom', kind: 'text' },
+              { key: 'url', label: 'Adresse', kind: 'text', placeholder: 'https://' },
+              { key: 'description', label: 'Description', kind: 'text' },
+              { key: 'icon', label: 'Icône', kind: 'text', placeholder: 'si:grafana', help: 'si:nom (Simple Icons) ou adresse d’une image.' },
+              { key: 'checkUrl', label: 'Adresse à vérifier', kind: 'text', wide: true, help: 'Facultatif. Interrogée par le serveur pour afficher l’état en ligne.' },
+            ],
+          },
+        ],
+      },
+    ],
     component: BookmarksWidget,
   },
   {
     type: 'rss', label: 'Flux RSS', group: 'Informations', refresh: 600,
     description: 'Derniers articles de plusieurs flux RSS ou Atom, fusionnés par date.',
     defaults: { limit: 12, feeds: [{ title: 'Kubernetes', url: 'https://kubernetes.io/feed.xml' }] },
-    fields: [{ key: 'feeds', label: 'Flux', kind: 'yaml', help: 'Liste de { title, url }.' }, limit('Nombre d’articles affichés.')],
+    fields: [{ key: 'feeds', label: 'Flux', kind: 'list', itemName: 'un flux', item: [{ key: 'title', label: 'Nom', kind: 'text' }, { key: 'url', label: 'Adresse', kind: 'text', placeholder: 'https://' }] }, limit('Nombre d’articles affichés.')],
     component: RssWidget,
   },
   {
@@ -176,7 +206,7 @@ const list: WidgetMeta[] = [
     type: 'calendar', label: 'Calendrier', group: 'Informations', refresh: 600,
     description: 'Mois en cours et prochains événements de vos agendas iCal.',
     defaults: { calendars: [] },
-    fields: [{ key: 'calendars', label: 'Agendas iCal', kind: 'yaml', help: 'Liste de { title, url }. Pour une adresse privée, utilisez une variable serveur : ${PORTAL_VAR_ICAL_URL}.' }],
+    fields: [{ key: 'calendars', label: 'Agendas iCal', kind: 'list', itemName: 'un agenda', item: [{ key: 'title', label: 'Nom', kind: 'text' }, { key: 'url', label: 'Adresse', kind: 'text', placeholder: 'https://' }], help: 'Pour une adresse privée, utilisez une variable serveur : ${PORTAL_VAR_ICAL_URL}.' }],
     component: CalendarWidget,
   },
   {
@@ -201,7 +231,7 @@ const list: WidgetMeta[] = [
     defaults: { engine: 'duckduckgo', bangs: [{ prefix: '!gh', url: 'https://github.com/search?q={q}' }] },
     fields: [
       { key: 'engine', label: 'Moteur', kind: 'select', choices: [['duckduckgo', 'DuckDuckGo'], ['google', 'Google'], ['kagi', 'Kagi'], ['startpage', 'Startpage'], ['brave', 'Brave']] },
-      { key: 'bangs', label: 'Raccourcis', kind: 'yaml', help: 'Liste de { prefix, url } ; {q} est remplacé par la recherche.' },
+      { key: 'bangs', label: 'Raccourcis', kind: 'list', itemName: 'un raccourci', help: '{q} est remplacé par la recherche.', item: [{ key: 'prefix', label: 'Préfixe', kind: 'text', placeholder: '!gh' }, { key: 'url', label: 'Adresse', kind: 'text', placeholder: 'https://github.com/search?q={q}' }] },
     ],
     component: SearchWidget as WidgetMeta['component'],
   },
@@ -209,7 +239,7 @@ const list: WidgetMeta[] = [
     type: 'clock', label: 'Horloges', group: 'Outils', refresh: 0,
     description: 'Heure locale et autres fuseaux horaires.',
     defaults: { zones: [{ label: 'New York', timezone: 'America/New_York' }] },
-    fields: [{ key: 'zones', label: 'Autres fuseaux', kind: 'yaml', help: 'Liste de { label, timezone }, par exemple Asia/Tokyo.' }],
+    fields: [{ key: 'zones', label: 'Autres fuseaux', kind: 'list', itemName: 'un fuseau', item: [{ key: 'label', label: 'Nom', kind: 'text', placeholder: 'Tokyo' }, { key: 'timezone', label: 'Fuseau', kind: 'text', placeholder: 'Asia/Tokyo' }] }],
     component: ClockWidget as WidgetMeta['component'],
   },
 ];

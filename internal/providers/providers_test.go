@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -529,5 +530,88 @@ func TestActivityMergesSourcesNewestFirst(t *testing.T) {
 	}
 	if items[0].State != "down" || items[3].Detail != "déployée en 0123456" || !strings.Contains(items[1].Detail, "OOMKilled") || items[1].State != "warn" {
 		t.Errorf("%+v", items)
+	}
+}
+
+func TestWorkloadDetailListsPodsAndEvents(t *testing.T) {
+	one := int32(1)
+	sel := map[string]string{"app": "api"}
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "apps", Name: "api"},
+		Spec: appsv1.DeploymentSpec{Replicas: &one, Selector: &metav1.LabelSelector{MatchLabels: sel},
+			Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{Image: "org/api:1"}}}}},
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "apps", Name: "api-abc", Labels: sel},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning, ContainerStatuses: []corev1.ContainerStatus{{
+			RestartCount: 3, State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}},
+		}}},
+	}
+	other := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "apps", Name: "web-1", Labels: map[string]string{"app": "web"}}}
+	event := func(name, obj string) *corev1.Event {
+		return &corev1.Event{ObjectMeta: metav1.ObjectMeta{Namespace: "apps", Name: name}, Type: corev1.EventTypeWarning, Reason: "BackOff",
+			InvolvedObject: corev1.ObjectReference{Kind: "Pod", Name: obj}, LastTimestamp: metav1.Now()}
+	}
+	deps := platformDeps([]runtime.Object{dep, pod, other, event("e1", "api-abc"), event("e2", "web-1")})
+	q := url.Values{"namespace": {"apps"}, "name": {"api"}, "kind": {"Deployment"}}
+	out, err := workloadDetail(context.Background(), deps, nil, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pods, events := out.Sections[0], out.Sections[1]
+	if len(pods.Rows) != 1 || pods.Rows[0].Title != "api-abc" || pods.Rows[0].State != "warn" || pods.Rows[0].Text != "CrashLoopBackOff" || pods.Rows[0].Aside != "3 redémarrages" {
+		t.Errorf("pods = %+v", pods.Rows)
+	}
+	if len(events.Rows) != 1 || events.Rows[0].Sub != "Pod/api-abc" {
+		t.Errorf("events = %+v", events.Rows)
+	}
+	if _, err := workloadDetail(context.Background(), deps, map[string]any{"exclude": []any{"apps"}}, q); err == nil {
+		t.Error("a namespace hidden from the widget must not be readable through its detail")
+	}
+}
+
+func TestArgoDetailListsOnlyResourcesNeedingAttention(t *testing.T) {
+	app := custom(argoApps, "Application", "argocd", "web", time.Now(), map[string]any{
+		"spec": map[string]any{"project": "lab"},
+		"status": map[string]any{
+			"sync": map[string]any{"status": "OutOfSync"}, "health": map[string]any{"status": "Degraded"},
+			"operationState": map[string]any{"phase": "Running", "message": "waiting for healthy state"},
+			"resources": []any{
+				map[string]any{"kind": "Service", "name": "web", "namespace": "web", "status": "Synced", "health": map[string]any{"status": "Healthy"}},
+				map[string]any{"kind": "ConfigMap", "name": "cfg", "namespace": "web", "status": "OutOfSync"},
+				map[string]any{"kind": "Deployment", "name": "web", "namespace": "web", "status": "Synced", "health": map[string]any{"status": "Degraded", "message": "crash"}},
+			},
+		},
+	})
+	out, err := argoDetail(context.Background(), platformDeps(nil, app), map[string]any{"url": "https://argo.example"}, url.Values{"name": {"web"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.URL != "https://argo.example/applications/argocd/web" || out.Sections[0].Rows[0].Text != "waiting for healthy state" {
+		t.Errorf("%+v", out)
+	}
+	rows := out.Sections[len(out.Sections)-1].Rows
+	if len(rows) != 2 || rows[0].Title != "ConfigMap/cfg" || rows[0].Aside != "OutOfSync" || rows[1].State != "down" || rows[1].Text != "crash" {
+		t.Errorf("resources = %+v", rows)
+	}
+	if _, err := argoDetail(context.Background(), platformDeps(nil, app), nil, url.Values{"name": {"nope"}}); err == nil {
+		t.Error("unknown application must be an error")
+	}
+}
+
+func TestPrometheusDetailReturnsTimedPoints(t *testing.T) {
+	base := serve(t, map[string]string{"/api/v1/query_range": `{"data":{"result":[{"values":[[1700000000,"1.5"],[1700000060,"NaN"],[1700000120,"3"]]}]}}`})
+	opts := map[string]any{"url": base, "stats": []any{map[string]any{"label": "CPU", "query": "up", "format": "percent"}}}
+	out, err := prometheusDetail(context.Background(), nil, opts, url.Values{"stat": {"0"}, "range": {"7d"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := out.Chart; c.Label != "CPU" || len(c.Points) != 2 || c.Points[1] != [2]float64{1700000120, 3} {
+		t.Errorf("%+v", out.Chart)
+	}
+	for _, stat := range []string{"1", "-1", "x", ""} {
+		if _, err := prometheusDetail(context.Background(), nil, opts, url.Values{"stat": {stat}}); err == nil {
+			t.Errorf("stat=%q accepted", stat)
+		}
 	}
 }

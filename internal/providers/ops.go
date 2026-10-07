@@ -715,6 +715,9 @@ type alert struct {
 	Namespace string    `json:"namespace,omitempty"`
 	Summary   string    `json:"summary,omitempty"`
 	Since     time.Time `json:"since"`
+	// Shown in the detail panel.
+	Description string            `json:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
 }
 
 type alertsResult struct {
@@ -783,7 +786,7 @@ func fetchAlerts(ctx context.Context, _ *Deps, opts map[string]any) (any, error)
 		if summary == "" {
 			summary = a.Annotations["description"]
 		}
-		res.Alerts = append(res.Alerts, alert{name, a.Labels["severity"], a.Labels["namespace"], summary, a.ActiveAt})
+		res.Alerts = append(res.Alerts, alert{name, a.Labels["severity"], a.Labels["namespace"], summary, a.ActiveAt, a.Annotations["description"], a.Labels})
 	}
 	sort.SliceStable(res.Alerts, func(a, b int) bool {
 		ra, oka := severityRank[res.Alerts[a].Severity]

@@ -57,7 +57,7 @@ function DataWidget({ widget, meta, preview, edit }: { widget: Widget; meta: Wid
   const has = state.data !== undefined && state.data !== null;
   return (
     <Frame widget={widget} meta={meta} edit={edit} badge={has && meta.badge ? meta.badge(state.data) : undefined}>
-      {has && <View data={state.data} options={widget.options ?? {}} />}
+      {has && <View data={state.data} options={widget.options ?? {}} widgetId={widget.id} />}
       {!has && state.loading && (
         <div className="skeleton" aria-label="Chargement">
           <i />
@@ -91,7 +91,7 @@ export function WidgetView({ widget, preview, edit }: { widget: Widget; preview:
     const View = meta.component;
     return (
       <Frame widget={widget} meta={meta} edit={edit}>
-        <View data={undefined} options={widget.options ?? {}} />
+        <View data={undefined} options={widget.options ?? {}} widgetId={widget.id} />
       </Frame>
     );
   }

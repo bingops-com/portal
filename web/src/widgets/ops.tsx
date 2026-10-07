@@ -1,10 +1,21 @@
 import { useState } from 'react';
-import type { Options } from '../api';
+import { api, type Options } from '../api';
+import { useDetail, type DetailData } from '../components/Detail';
 import { Bell, DatabaseBackup, Rocket, RotateCw } from 'lucide-react';
 import { AnimatedNumber, Empty, Mark, Sparkline, ext, type State } from '../components/bits';
 import { ago, age, formatStat } from '../format';
 
-type Props<T> = { data: T; options: Options };
+type Props<T> = { data: T; options: Options; widgetId: string };
+
+// A row title that opens the detail panel; plain text while editing.
+function Open({ onOpen, children }: { onOpen?: () => void; children: React.ReactNode }) {
+  if (!onOpen) return <span className="row-title">{children}</span>;
+  return (
+    <button className="row-title row-open" onClick={onOpen}>
+      {children}
+    </button>
+  );
+}
 
 function More<T>({ items, limit, children }: { items: T[]; limit: number; children: (shown: T[]) => React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -104,7 +115,8 @@ type Workloads = {
 };
 const kinds: Record<string, string> = { Deployment: 'deploy', StatefulSet: 'sts', DaemonSet: 'ds' };
 
-export function WorkloadsWidget({ data, options }: Props<Workloads>) {
+export function WorkloadsWidget({ data, options, widgetId }: Props<Workloads>) {
+  const detail = useDetail();
   if (data.workloads.length === 0) return <Empty>Aucun workload dans les namespaces sélectionnés.</Empty>;
   return (
     <More items={data.workloads} limit={Number(options.limit) || 10}>
@@ -114,7 +126,15 @@ export function WorkloadsWidget({ data, options }: Props<Workloads>) {
             <li key={`${w.kind}/${w.namespace}/${w.name}`} className="row">
               <Mark state={w.healthy ? 'ok' : w.ready > 0 ? 'warn' : 'down'} label={w.healthy ? 'Prêt' : 'Incomplet'} />
               <div className="row-main">
-                <span className="row-title">{w.name}</span>
+                <Open
+                  onOpen={
+                    detail
+                      ? () => detail({ title: w.name, subtitle: `${w.kind} dans ${w.namespace}`, load: () => api.detail<DetailData>(widgetId, { kind: w.kind, namespace: w.namespace, name: w.name }) })
+                      : undefined
+                  }
+                >
+                  {w.name}
+                </Open>
                 <span className="row-sub">
                   {w.namespace} ({kinds[w.kind] ?? w.kind})
                 </span>
@@ -176,7 +196,8 @@ function argoState(a: Argo['apps'][number]): State {
   return a.sync === 'Unknown' && a.health === 'Unknown' ? 'unknown' : 'warn';
 }
 
-export function ArgoWidget({ data, options }: Props<Argo>) {
+export function ArgoWidget({ data, options, widgetId }: Props<Argo>) {
+  const detail = useDetail();
   if (data.apps.length === 0) return <Empty>Aucune Application Argo CD visible avec ce compte de service.</Empty>;
   return (
     <More items={data.apps} limit={Number(options.limit) || 12}>
@@ -189,13 +210,15 @@ export function ArgoWidget({ data, options }: Props<Argo>) {
               <li key={a.name} className="row">
                 <Mark state={state} />
                 <div className="row-main">
-                  {a.url ? (
-                    <a className="row-title" {...ext(a.url)}>
-                      {a.name}
-                    </a>
-                  ) : (
-                    <span className="row-title">{a.name}</span>
-                  )}
+                  <Open
+                    onOpen={
+                      detail
+                        ? () => detail({ title: a.name, subtitle: 'Application Argo CD', linkLabel: 'Ouvrir dans Argo CD', load: () => api.detail<DetailData>(widgetId, { name: a.name }) })
+                        : undefined
+                    }
+                  >
+                    {a.name}
+                  </Open>
                   <span className="row-sub">{a.path || a.project}</span>
                 </div>
                 <span className={`tag tag-${state === 'none' ? 'unknown' : state}`} title={a.ignored ? 'Écart accepté : ignorée dans les compteurs' : undefined}>
@@ -268,11 +291,29 @@ export const gatusBadge = (d: Gatus) => `${d.up}/${d.endpoints.length} en ligne`
 
 type Prom = { stats: { label: string; value: number | null; format: string; state: State; series?: number[]; error?: string }[] };
 
-export function PrometheusWidget({ data }: Props<Prom>) {
+export function PrometheusWidget({ data, widgetId }: Props<Prom>) {
+  const detail = useDetail();
   return (
     <div className="stats">
-      {data.stats.map((s) => (
-        <div key={s.label} className={`stat stat-${s.state}`}>
+      {data.stats.map((s, i) => (
+        <div
+          key={s.label}
+          className={`stat stat-${s.state}${detail && !s.error ? ' stat-open' : ''}`}
+          {...(detail && !s.error
+            ? {
+                role: 'button',
+                tabIndex: 0,
+                title: 'Voir l’historique',
+                onClick: () => detail({ title: s.label, subtitle: 'Historique Prometheus', ranges: true, load: (range) => api.detail<DetailData>(widgetId, { stat: String(i), range }) }),
+                onKeyDown: (e: React.KeyboardEvent) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    (e.currentTarget as HTMLElement).click();
+                  }
+                },
+              }
+            : {})}
+        >
           <span className="stat-label">{s.label}</span>
           <span className="stat-value">{s.error || s.value === null ? 'n/d' : <AnimatedNumber value={s.value} format={(n) => formatStat(s.format === 'number' && Number.isInteger(s.value) ? Math.round(n) : n, s.format)} />}</span>
           {s.error ? <span className="stat-note">{s.error}</span> : <Sparkline values={s.series} />}
@@ -289,9 +330,24 @@ export function PrometheusWidget({ data }: Props<Prom>) {
 
 // --- Alerts ---
 
-type Alerts = { alerts: { name: string; severity: string; namespace?: string; summary?: string; since: string }[] };
+type Alerts = { alerts: { name: string; severity: string; namespace?: string; summary?: string; since: string; description?: string; labels?: Record<string, string> }[] };
 
 export function AlertsWidget({ data }: Props<Alerts>) {
+  const detail = useDetail();
+  const open = (a: Alerts['alerts'][number]) => () =>
+    detail?.({
+      title: a.name,
+      subtitle: `Alerte ${a.severity || 'sans sévérité'}`,
+      load: async () => ({
+        facts: [
+          { label: 'Active depuis', value: new Date(a.since).toLocaleString('fr-FR') },
+          ...Object.entries(a.labels ?? {})
+            .filter(([k]) => !['alertname', 'severity', 'prometheus', 'cluster', 'environment'].includes(k))
+            .map(([label, value]) => ({ label, value })),
+        ],
+        sections: [{ title: 'Description', empty: 'Cette alerte n’a pas de description.', rows: [a.summary, a.description].filter((t): t is string => Boolean(t)).map((t) => ({ title: t })) }],
+      }),
+    });
   if (data.alerts.length === 0) return <Empty>Aucune alerte active.</Empty>;
   return (
     <More items={data.alerts} limit={6}>
@@ -301,7 +357,7 @@ export function AlertsWidget({ data }: Props<Alerts>) {
             <li key={i} className="row row-top">
               <Mark state={a.severity === 'critical' ? 'down' : 'warn'} label={a.severity || 'alerte'} />
               <div className="row-main">
-                <span className="row-title">{a.name}</span>
+                <Open onOpen={detail ? open(a) : undefined}>{a.name}</Open>
                 {a.namespace && <span className="row-sub">{a.namespace}</span>}
                 {a.summary && <span className="row-text">{a.summary}</span>}
               </div>
@@ -317,7 +373,27 @@ export const alertsBadge = (d: Alerts) => (d.alerts.length ? `${d.alerts.length}
 
 // --- Bookmarks ---
 
-type Bookmarks = { groups: { title: string; links: { title: string; url: string; description?: string; status?: 'up' | 'down'; ms?: number }[] }[] };
+type Bookmarks = { groups: { title: string; links: { title: string; url: string; description?: string; icon?: string; status?: 'up' | 'down'; ms?: number }[] }[] };
+
+// `si:<slug>` loads a brand icon from the Simple Icons CDN; an http(s) URL is
+// used as is. Anything that fails to load falls back to the monogram.
+function LinkIcon({ title, icon }: { title: string; icon?: string }) {
+  const [failed, setFailed] = useState(false);
+  const slug = icon?.startsWith('si:') ? icon.slice(3).toLowerCase() : '';
+  const src = slug && /^[a-z0-9]+$/.test(slug) ? `https://cdn.simpleicons.org/${slug}` : icon && /^https?:\/\//.test(icon) ? icon : '';
+  if (!src || failed) {
+    return (
+      <span className="monogram" aria-hidden>
+        {title.slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+  return (
+    <span className="monogram monogram-icon" aria-hidden>
+      <img src={src} alt="" width={18} height={18} loading="lazy" onError={() => setFailed(true)} />
+    </span>
+  );
+}
 
 export function BookmarksWidget({ data }: Props<Bookmarks>) {
   if (data.groups.length === 0) return <Empty>Ajoutez des liens dans les réglages du widget.</Empty>;
@@ -330,9 +406,7 @@ export function BookmarksWidget({ data }: Props<Bookmarks>) {
             {g.links.map((l) => (
               <li key={l.url + l.title}>
                 <a {...ext(l.url)} className="link">
-                  <span className="monogram" aria-hidden>
-                    {l.title.slice(0, 1).toUpperCase()}
-                  </span>
+                  <LinkIcon title={l.title} icon={l.icon} />
                   <span className="row-main">
                     <span className="row-title">{l.title}</span>
                     {l.description && <span className="row-sub">{l.description}</span>}

@@ -4,7 +4,7 @@ import type { Options } from '../api';
 import { AnimatedNumber, Empty, Sparkline, ext } from '../components/bits';
 import { age, clockTime, compact, host, money } from '../format';
 
-type Props<T> = { data: T; options: Options };
+type Props<T> = { data: T; options: Options; widgetId?: string };
 
 // --- RSS ---
 

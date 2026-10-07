@@ -1434,3 +1434,246 @@ textarea:focus-visible {
     animation: none !important;
   }
 }
+
+/* --- Detail drawer and chart -------------------------------------------- */
+
+.row-open {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.row-open:hover {
+  color: var(--cobalt);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.stat-open {
+  cursor: pointer;
+  border-radius: 10px;
+  outline-offset: 6px;
+}
+.stat-open:hover .stat-label {
+  color: var(--cobalt);
+}
+.row-text-full {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.drawer {
+  width: min(34rem, 100vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: -18px 0 50px rgb(6 15 43 / 0.25);
+}
+.drawer[open] {
+  display: flex;
+  flex-direction: column;
+  animation: slide-in 0.22s ease-out;
+}
+@keyframes slide-in {
+  from {
+    transform: translateX(2.5rem);
+    opacity: 0;
+  }
+}
+.drawer::backdrop {
+  background: rgb(6 15 43 / 0.35);
+}
+.drawer > header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.1rem 1.25rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.drawer > header div {
+  flex: 1;
+  min-width: 0;
+}
+.drawer h2 {
+  font: 700 1.3125rem/1.2 var(--display);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.drawer > header p {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+.drawer-body {
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+  padding: 1.1rem 1.25rem 2rem;
+  overflow-y: auto;
+}
+.drawer h3 {
+  font: 650 1rem var(--display);
+}
+.drawer .btn {
+  justify-self: start;
+}
+.drawer-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.75rem 1rem;
+}
+.drawer-facts dt {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.drawer-facts dd {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.segmented {
+  display: inline-flex;
+  justify-self: start;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--tint);
+}
+.segmented button {
+  height: 1.9rem;
+  padding: 0 0.85rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.segmented button[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--cobalt);
+  box-shadow: 0 1px 2px rgb(10 27 68 / 0.15);
+}
+.chart {
+  margin: 0;
+}
+.chart figcaption {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding-bottom: 0.4rem;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+.chart figcaption strong {
+  color: var(--ink);
+  font: 650 1.75rem/1 var(--display);
+  letter-spacing: -0.02em;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+  height: 12rem;
+  border-bottom: 1px solid var(--line);
+  cursor: crosshair;
+}
+.chart-line {
+  fill: none;
+  stroke: var(--cobalt);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.chart-area {
+  fill: var(--tint);
+  opacity: 0.7;
+}
+.chart-cursor {
+  stroke: var(--ink-soft);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.chart-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-top: 0.35rem;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+.monogram-icon {
+  background: var(--tint);
+}
+:root[data-theme='dark'] .monogram-icon,
+.monogram-icon {
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+/* --- List editor --------------------------------------------------------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.form-group {
+  display: grid;
+  gap: 0.4rem;
+}
+.form-label,
+.list-label {
+  font-weight: 550;
+  font-size: 0.875rem;
+}
+.list-field {
+  display: grid;
+  gap: 0.5rem;
+}
+.list-entry {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-width: 0;
+}
+.list-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.6rem;
+  min-width: 0;
+}
+.list-grid label {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.form .list-grid label > span {
+  font-weight: 500;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.list-wide {
+  grid-column: 1 / -1;
+}
+.list-nested {
+  display: grid;
+  gap: 0.4rem;
+}
+.list-nested .list-entry {
+  background: var(--ground);
+}
+.list-tools {
+  display: grid;
+  align-content: start;
+}
+.modal:has(.list-field) {
+  width: min(52rem, calc(100vw - 2rem));
+}

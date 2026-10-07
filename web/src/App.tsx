@@ -3,6 +3,7 @@ import { Command as CommandIcon, Download, LogOut, Monitor, Moon, PencilLine, Pl
 import { stringify } from 'yaml';
 import { api, type Page, type PortalConfig, type SummaryItem } from './api';
 import { Mark } from './components/bits';
+import { DetailDrawer, DetailProvider, type DetailRequest } from './components/Detail';
 import { PageEditor, PageView } from './components/PageView';
 import { Palette, type Command } from './components/Palette';
 import { ago } from './format';
@@ -108,6 +109,7 @@ export function App() {
   const summary = useSummary(config !== null);
   const changed = useChanged(summary);
   const [palette, setPalette] = useState(false);
+  const [detail, setDetail] = useState<DetailRequest | null>(null);
   const worst = summary.reduce<SummaryItem['state']>((w, s) => (rank[s.state] > rank[w] ? s.state : w), 'ok');
   const troubled = summary.filter((s) => s.state === 'warn' || s.state === 'down').length;
 
@@ -383,8 +385,12 @@ export function App() {
 
       {palette && <Palette commands={commands} onClose={() => setPalette(false)} />}
 
+      {detail && <DetailDrawer request={detail} onClose={() => setDetail(null)} />}
+
       <main className="page">
-        {draft ? <PageEditor key={index} page={page} onChange={updatePage} /> : <PageView key={page.slug} page={page} />}
+        <DetailProvider value={draft ? null : setDetail}>
+          {draft ? <PageEditor key={index} page={page} onChange={updatePage} /> : <PageView key={page.slug} page={page} />}
+        </DetailProvider>
       </main>
     </>
   );
