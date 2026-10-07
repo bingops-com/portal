@@ -116,8 +116,8 @@ Le bandeau résume en continu tous les widgets `kubernetes`, `argocd`, `gatus`,
 `alerts`, `certificates` et `backups` de la configuration, quelle que soit la
 page affichée. Les alertes de sévérité `info` n'y comptent pas. Un indicateur
 qui change d'état s'anime une fois et affiche depuis quand ; un clic amène au
-widget concerné. Le liseré du bandeau, l'icône et le titre de l'onglet
-reflètent le pire état. `Ctrl+K` ouvre la palette de commandes (pages, liens
+widget concerné. Le titre de l'onglet indique le nombre d'indicateurs dégradés ;
+le bandeau et l'icône restent bleus quel que soit l'état. `Ctrl+K` ouvre la palette de commandes (pages, liens
 des widgets `bookmarks`, thème, édition).
 
 Un clic sur une ligne ouvre un panneau de détail : pods et événements d'un

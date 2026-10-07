@@ -98,20 +98,6 @@ function useSummary(enabled: boolean): { items: SummaryItem[]; beat: number; ali
 }
 
 const rank = { ok: 0, unknown: 1, warn: 2, down: 3 } as const;
-const stateColors = { ok: '#1443d6', unknown: '#1443d6', warn: '#c77700', down: '#c81e45' };
-
-// Mirrors the worst state in the tab icon, for when the portal is pinned.
-function setFavicon(color: string) {
-  let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-  if (!link) {
-    link = document.createElement('link');
-    link.rel = 'icon';
-    document.head.appendChild(link);
-  }
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='${color}'/><path d='M9 8v16h14' fill='none' stroke='#fff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/></svg>`;
-  link.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
-
 // Labels of the readouts whose state changed on the latest refresh; they
 // pulse once so a change catches the eye.
 type Change = { from: string; to: string; since?: string };
@@ -241,7 +227,6 @@ export function App() {
   useEffect(() => {
     if (config && page) document.title = `${troubled ? `(${troubled}) ` : ''}${page.name} | ${config.title}`;
   }, [config, page, troubled]);
-  useEffect(() => setFavicon(stateColors[worst]), [worst]);
 
   useEffect(() => {
     if (!notify || !('Notification' in window) || Notification.permission !== 'granted') return;

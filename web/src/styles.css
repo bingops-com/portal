@@ -235,28 +235,6 @@ img {
   }
 }
 
-/* The band's lower edge carries the worst state of the lab. */
-.band {
-  position: relative;
-}
-.band::after {
-  content: '';
-  position: absolute;
-  inset: auto 0 0;
-  height: 4px;
-  background: transparent;
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.5s ease, background-color 0.3s;
-}
-.band[data-state='warn']::after {
-  background: #ffc247;
-  transform: scaleX(1);
-}
-.band[data-state='down']::after {
-  background: #ff6b88;
-  transform: scaleX(1);
-}
 .band-btn-keys kbd {
   font: 500 0.8125rem var(--body);
 }
