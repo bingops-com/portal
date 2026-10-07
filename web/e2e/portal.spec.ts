@@ -125,7 +125,9 @@ test('a section folds the widgets below it and remembers the choice', async ({ p
   };
   expect((await page.request.put('/api/layout', { data: layout })).ok()).toBeTruthy();
   await page.goto('/');
-  await expect(page.locator('.nav-group')).toHaveText(['Lab', 'Perso']);
+  // Groups only separate the tabs: no caption, since a caption is not a link.
+  await expect(page.locator('.nav-sep')).toHaveCount(1);
+  await expect(page.locator('.band nav')).not.toContainText('Lab');
   const toggle = page.getByRole('button', { name: 'Outils' });
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('.widget h2')).toContainText(['Avant', 'Dedans']);

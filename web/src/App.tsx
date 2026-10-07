@@ -580,7 +580,7 @@ export function App() {
               const state = pageState(p);
               return (
                 <span key={i} className="nav-item">
-                  {p.group && p.group !== pages[i - 1]?.group && <span className="nav-group">{p.group}</span>}
+                  {i > 0 && (p.group ?? '') !== (pages[i - 1].group ?? '') && <span className="nav-sep" aria-hidden />}
                   <a href={i === 0 ? '/' : `/${p.slug}`} aria-current={i === index ? 'page' : undefined} onClick={(e) => { e.preventDefault(); go(i); }}>
                     {p.name}
                     {state && i !== index && <i className={`nav-dot nav-dot-${state}`} role="img" aria-label={state === 'down' ? 'contient un indicateur en panne' : 'contient un indicateur à surveiller'} />}
@@ -647,7 +647,7 @@ export function App() {
             <input value={page.name} onChange={(e) => updatePage({ ...page, name: e.target.value, slug: '' })} />
           </label>
           <label className="editbar-name editbar-group">
-            <span>Groupe dans la navigation</span>
+            <span>Groupe (sépare les onglets)</span>
             <input value={page.group ?? ''} placeholder="Aucun" onChange={(e) => updatePage({ ...page, group: e.target.value || undefined })} />
           </label>
           <button className="btn" disabled={page.columns.length >= 4} onClick={() => updatePage({ ...page, columns: [...page.columns, { size: 'small', widgets: [] }] })}>

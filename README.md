@@ -53,7 +53,7 @@ courante pour la reporter dans Git, **Revenir au YAML** supprime `layout.json`.
 ```yaml
 pages:
   - name: Ops
-    group: Lab           # facultatif : regroupe des pages dans la navigation
+    group: Lab           # facultatif : un trait sépare les groupes d'onglets
     columns:
       - size: small        # small | full
         widgets:
