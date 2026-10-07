@@ -2679,3 +2679,183 @@ body {
 .kiosk .foot {
   display: none;
 }
+
+/* ======================================================================
+   Phone and small tablet. The header becomes three rows: brand and tools,
+   a strip of tabs that scrolls sideways, then the readouts.
+   ====================================================================== */
+
+/* Grid children must be allowed to shrink below their content, or one wide
+   widget (the map) stretches its whole column past the screen. */
+.column > *,
+.column-drop > *,
+.section > * {
+  min-width: 0;
+}
+
+@media (max-width: 48rem) {
+  :root {
+    --gap: 1rem;
+    --pad-x: 1.05rem;
+    --pad-top: 1rem;
+    --pad-bottom: 1.05rem;
+    --row: 0.65rem;
+  }
+  .band {
+    padding-inline: 1rem;
+  }
+  .band-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'brand beat tools'
+      'tabs tabs tabs';
+    align-items: center;
+    gap: 0.7rem 0.75rem;
+    padding: 0.8rem 0 0.55rem;
+  }
+  .wordmark {
+    grid-area: brand;
+    font-size: 1.3125rem;
+    min-width: 0;
+  }
+  .beat {
+    grid-area: beat;
+  }
+  .band-tools {
+    grid-area: tools;
+  }
+  .band-btn-text {
+    padding: 0 0.55rem;
+  }
+  .btn-label,
+  .band-btn-keys {
+    display: none;
+  }
+  .band nav {
+    grid-area: tabs;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 1rem;
+  }
+  .band nav::-webkit-scrollbar {
+    display: none;
+  }
+  .nav-item {
+    flex: none;
+  }
+  .band nav a {
+    white-space: nowrap;
+    scroll-snap-align: center;
+  }
+  .nav-sep {
+    margin: 0 0.35rem;
+  }
+
+  /* One swipeable row of readouts, up to tablet width. */
+  .readouts {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 1rem;
+    scrollbar-width: none;
+    margin: 0 -1rem;
+    padding: 0 1rem;
+  }
+  .readouts::-webkit-scrollbar {
+    display: none;
+  }
+  .readouts li {
+    width: auto;
+    flex: none;
+    scroll-snap-align: start;
+    border-right: 1px solid rgb(255 255 255 / 0.22);
+  }
+  .readouts li:last-child {
+    border-right: 0;
+  }
+  .readout-detail {
+    white-space: nowrap;
+  }
+  .readouts button,
+  :root[data-density='compact'] .readouts button {
+    margin-left: 0;
+    padding: 0.7rem 0 0.8rem;
+  }
+  .readouts li {
+    padding-right: 1rem;
+    margin-right: 1rem;
+  }
+
+  .page {
+    padding-inline: 0.85rem;
+    padding-top: 1rem;
+  }
+  .widget-head h2 {
+    font-size: 1.0625rem;
+  }
+  .foot {
+    padding-inline: 1rem;
+  }
+
+  /* The map keeps its proportions and scrolls sideways instead of
+     piling its labels on top of each other. */
+  .widget-topology .widget-body {
+    overflow-x: auto;
+  }
+  .topology {
+    min-width: 40rem;
+  }
+
+  /* Tall once wrapped: it scrolls away with the page instead of covering it. */
+  .editbar {
+    position: static;
+    padding-inline: 0.85rem;
+  }
+  .editbar-name {
+    flex: 1 1 100%;
+  }
+  .editbar-name input,
+  .editbar-name select,
+  .editbar-group input {
+    width: 100%;
+  }
+  .editbar .btn {
+    flex: 1 1 auto;
+  }
+  .column-edit {
+    padding: 0.35rem;
+  }
+
+  .modal,
+  .palette {
+    width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
+  .palette {
+    margin-top: 0.5rem;
+  }
+  .list-entry {
+    flex-direction: column;
+  }
+  .list-tools {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .drawer {
+    width: 100vw;
+  }
+  .focus {
+    padding: 0.5rem;
+  }
+  .pairs {
+    padding-left: 0;
+  }
+  .toast {
+    border-radius: 16px;
+  }
+}

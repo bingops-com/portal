@@ -579,6 +579,11 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, pages, draft, theme, index, kiosk, notify, found, accent, sound, present, density]);
 
+  // On a phone the tabs scroll sideways: keep the current one in view.
+  useEffect(() => {
+    document.querySelector('.band nav a[aria-current="page"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [index, config === null]);
+
   // The worst readout among the widgets of a page, shown on its tab so that
   // trouble filed on another page is not missed.
   const pageState = (p: Page): 'warn' | 'down' | null => {
@@ -647,13 +652,13 @@ export function App() {
               <ThemeIcon size={17} aria-hidden />
             </button>
             {!config.readOnly && !draft && needsLogin && (
-              <a className="band-btn band-btn-text" href={loginUrl}>
-                <PencilLine size={16} aria-hidden /> Se connecter pour modifier
+              <a className="band-btn band-btn-text" href={loginUrl} aria-label="Se connecter pour modifier">
+                <PencilLine size={16} aria-hidden /> <span className="btn-label">Se connecter pour modifier</span>
               </a>
             )}
             {!config.readOnly && !draft && !needsLogin && (
-              <button className="band-btn band-btn-text" onClick={startEdit}>
-                <PencilLine size={16} aria-hidden /> Modifier
+              <button className="band-btn band-btn-text" onClick={startEdit} aria-label="Modifier">
+                <PencilLine size={16} aria-hidden /> <span className="btn-label">Modifier</span>
               </button>
             )}
             {config.user && !draft && (

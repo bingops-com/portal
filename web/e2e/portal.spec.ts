@@ -99,7 +99,19 @@ test('the phone layout does not scroll sideways', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto('/');
   await expect(page.locator('.widget').first()).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  const width = () => page.evaluate(() => document.documentElement.scrollWidth);
+  expect(await width()).toBeLessThanOrEqual(390);
+
+  // Header: tabs stay on one row beside nothing else, tools keep to icons.
+  const nav = await page.locator('.band nav').boundingBox();
+  expect(nav!.height).toBeLessThan(60);
+  await expect(page.locator('.btn-label')).toBeHidden();
+
+  await page.locator('.band nav a', { hasText: 'Outils' }).click();
+  await expect(page).toHaveURL(/\/outils$/);
+  await page.getByRole('button', { name: 'Modifier' }).click();
+  await expect(page.locator('.editbar')).toBeVisible();
+  expect(await width()).toBeLessThanOrEqual(390);
 });
 
 test('a section folds the widgets below it and remembers the choice', async ({ page }) => {
