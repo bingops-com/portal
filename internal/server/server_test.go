@@ -171,3 +171,23 @@ func TestLoginRequiredForWritesButNotReads(t *testing.T) {
 		t.Errorf("reads must stay open: %d", rec.Code)
 	}
 }
+
+func TestStampDatesOnlyObservedStateChanges(t *testing.T) {
+	s := &Server{}
+	item := providers.SummaryItem{Label: "Cluster", State: "ok"}
+	if s.stamp(&item); item.Since != nil {
+		t.Fatal("the first observation has no known change date")
+	}
+	if s.stamp(&item); item.Since != nil {
+		t.Fatal("an unchanged state must not get a date")
+	}
+	item.State = "down"
+	s.stamp(&item)
+	if item.Since == nil {
+		t.Fatal("a change must be dated")
+	}
+	first := *item.Since
+	if s.stamp(&item); !item.Since.Equal(first) {
+		t.Fatal("the date must be kept while the state holds")
+	}
+}

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Check, HelpCircle, X } from 'lucide-react';
 
 export type State = 'ok' | 'warn' | 'down' | 'unknown' | 'none';
@@ -34,4 +35,29 @@ export function Empty({ children }: { children: React.ReactNode }) {
 // Attributes for a link that leaves the portal.
 export function ext(url?: string) {
   return url ? { href: url, target: '_blank', rel: 'noreferrer' } : {};
+}
+
+// Glides from the previous value to the new one, so a refresh reads as a
+// change rather than a jump. Respects the reduced-motion preference.
+export function AnimatedNumber({ value, format }: { value: number; format: (n: number) => string }) {
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+  useEffect(() => {
+    const start = from.current;
+    from.current = value;
+    if (start === value || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setShown(value);
+      return;
+    }
+    const t0 = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const k = Math.min(1, (now - t0) / 700);
+      setShown(start + (value - start) * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+  return <>{format(shown)}</>;
 }

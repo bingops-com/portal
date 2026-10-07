@@ -489,3 +489,45 @@ func TestAlertSummaryIgnoresInformationalAlerts(t *testing.T) {
 		t.Errorf("mixed = %+v", s)
 	}
 }
+
+func TestActivityMergesSourcesNewestFirst(t *testing.T) {
+	now := time.Now()
+	stamp := func(d time.Duration) string { return now.Add(-d).UTC().Format(time.RFC3339) }
+	app := custom(argoApps, "Application", "argocd", "web", now, map[string]any{
+		"status": map[string]any{"history": []any{
+			map[string]any{"deployedAt": stamp(100 * time.Hour), "revision": "old"},
+			map[string]any{"deployedAt": stamp(2 * time.Hour), "revision": "0123456789abcdef0123456789abcdef01234567"},
+		}},
+	})
+	done := custom(cnpgBackups, "Backup", "db", "b1", now, map[string]any{
+		"spec":   map[string]any{"cluster": map[string]any{"name": "pg"}},
+		"status": map[string]any{"phase": "completed", "stoppedAt": stamp(time.Hour)},
+	})
+	crashed := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "apps", Name: "api-1"},
+		Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{
+			RestartCount: 2,
+			LastTerminationState: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{
+				Reason: "OOMKilled", ExitCode: 137, FinishedAt: metav1.NewTime(now.Add(-30 * time.Minute)),
+			}},
+		}}},
+	}
+	prom := serve(t, map[string]string{"/api/v1/alerts": `{"data":{"alerts":[{"labels":{"alertname":"DiskFull","severity":"critical"},"state":"firing","activeAt":"` + stamp(10*time.Minute) + `"}]}}`})
+
+	out, err := fetchActivity(context.Background(), platformDeps([]runtime.Object{crashed}, app, done), map[string]any{"url": prom, "hours": 72})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := out.(map[string]any)["items"].([]activityItem)
+	var got []string
+	for _, it := range items {
+		got = append(got, it.Kind+":"+it.Title)
+	}
+	want := []string{"alert:DiskFull", "restart:api-1", "backup:pg", "deploy:web"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if items[0].State != "down" || items[3].Detail != "déployée en 0123456" || !strings.Contains(items[1].Detail, "OOMKilled") || items[1].State != "warn" {
+		t.Errorf("%+v", items)
+	}
+}

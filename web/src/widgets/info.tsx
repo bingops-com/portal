@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudMoon, CloudRain, CloudSnow, CloudSun, Droplets, MessageSquare, Moon, Search, Sun, Wind } from 'lucide-react';
 import type { Options } from '../api';
-import { Empty, Sparkline, ext } from '../components/bits';
+import { AnimatedNumber, Empty, Sparkline, ext } from '../components/bits';
 import { age, clockTime, compact, host, money } from '../format';
 
 type Props<T> = { data: T; options: Options };
@@ -77,7 +77,7 @@ export function MarketsWidget({ data }: Props<Markets>) {
             </div>
             <Sparkline values={c.sparkline} className={up ? 'spark-up' : 'spark-down'} />
             <span className="row-aside">
-              {money(c.price, data.currency)}
+              <AnimatedNumber value={c.price} format={(n) => money(n, data.currency)} />
               <small className={up ? 'up' : 'down'}>
                 {up ? '+' : '−'}
                 {Math.abs(c.change24h).toFixed(2).replace('.', ',')} %
@@ -112,12 +112,23 @@ function wmo(code: number, day = true): [typeof Sun, string] {
   return [CloudLightning, 'Orage'];
 }
 
+// The one decorative surface of the portal: the current conditions sit on a
+// sky that matches them.
+function sky(code: number, day: boolean): string {
+  if (code >= 95) return 'storm';
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+  if (code >= 51) return 'rain';
+  if (code >= 45) return 'fog';
+  if (code === 3) return 'cloud';
+  return day ? 'day' : 'night';
+}
+
 export function WeatherWidget({ data }: Props<Weather>) {
   const [Icon, label] = wmo(data.current.code, data.current.isDay);
   const hours = data.hourly.filter((_, i) => i % 3 === 0).slice(0, 6);
   return (
     <>
-      <div className="weather-now">
+      <div className={`weather-now sky sky-${sky(data.current.code, data.current.isDay)}`}>
         <Icon size={44} strokeWidth={1.5} aria-hidden />
         <div>
           <span className="weather-temp">{Math.round(data.current.temp)}°</span>

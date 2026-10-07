@@ -13,7 +13,7 @@ export type PortalConfig = {
   user?: string;
 };
 export type DataResponse<T> = { data?: T; error?: string; fetchedAt?: string; stale?: boolean };
-export type SummaryItem = { label: string; state: 'ok' | 'warn' | 'down' | 'unknown'; detail: string };
+export type SummaryItem = { label: string; state: 'ok' | 'warn' | 'down' | 'unknown'; detail: string; type?: string; since?: string };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { Options } from '../api';
-import { Empty, Mark, Sparkline, ext, type State } from '../components/bits';
-import { age, formatStat } from '../format';
+import { Bell, DatabaseBackup, Rocket, RotateCw } from 'lucide-react';
+import { AnimatedNumber, Empty, Mark, Sparkline, ext, type State } from '../components/bits';
+import { ago, age, formatStat } from '../format';
 
 type Props<T> = { data: T; options: Options };
 
@@ -45,7 +46,9 @@ export function ClusterWidget({ data }: Props<Cluster>) {
         </div>
         <div>
           <dt>Pods actifs</dt>
-          <dd>{data.pods.Running ?? 0}</dd>
+          <dd>
+            <AnimatedNumber value={data.pods.Running ?? 0} format={(n) => String(Math.round(n))} />
+          </dd>
         </div>
         <div>
           <dt>Namespaces</dt>
@@ -271,7 +274,7 @@ export function PrometheusWidget({ data }: Props<Prom>) {
       {data.stats.map((s) => (
         <div key={s.label} className={`stat stat-${s.state}`}>
           <span className="stat-label">{s.label}</span>
-          <span className="stat-value">{s.error ? 'n/d' : formatStat(s.value, s.format)}</span>
+          <span className="stat-value">{s.error || s.value === null ? 'n/d' : <AnimatedNumber value={s.value} format={(n) => formatStat(s.format === 'number' && Number.isInteger(s.value) ? Math.round(n) : n, s.format)} />}</span>
           {s.error ? <span className="stat-note">{s.error}</span> : <Sparkline values={s.series} />}
           {s.format === 'percent' && s.value !== null && (
             <span className="meter" aria-hidden>
@@ -412,3 +415,35 @@ export function BackupsWidget({ data }: Props<Backups>) {
   );
 }
 export const backupsBadge = (d: Backups) => `${d.healthy}/${d.backups.length} à jour`;
+
+// --- Activity ---
+
+type Activity = { items: { time: string; kind: 'deploy' | 'alert' | 'backup' | 'restart'; title: string; detail?: string; state: State }[] };
+
+const activityIcons = { deploy: Rocket, alert: Bell, backup: DatabaseBackup, restart: RotateCw };
+const activityNames = { deploy: 'Déploiement', alert: 'Alerte', backup: 'Sauvegarde', restart: 'Redémarrage' };
+
+export function ActivityWidget({ data }: Props<Activity>) {
+  if (data.items.length === 0) return <Empty>Rien à signaler sur la période : ni déploiement, ni alerte, ni redémarrage.</Empty>;
+  return (
+    <ol className="timeline">
+      {data.items.map((it, i) => {
+        const Icon = activityIcons[it.kind] ?? Bell;
+        return (
+          <li key={i} className={`timeline-item timeline-${it.state}`}>
+            <span className="timeline-icon" role="img" aria-label={activityNames[it.kind]} title={activityNames[it.kind]}>
+              <Icon size={14} aria-hidden />
+            </span>
+            <div className="row-main">
+              <span className="row-title">{it.title}</span>
+              {it.detail && <span className="row-text">{it.detail}</span>}
+            </div>
+            <time className="row-aside" dateTime={it.time} title={new Date(it.time).toLocaleString('fr-FR')}>
+              {ago(it.time)}
+            </time>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}

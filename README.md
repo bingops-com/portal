@@ -73,6 +73,7 @@ une adresse iCal privée (`PORTAL_VAR_ICAL_URL`).
 | `workloads` | API Kubernetes | `namespaces`, `exclude`, `limit`, `context` |
 | `events` | API Kubernetes (avertissements) | `namespaces`, `limit`, `context` |
 | `argocd` | Applications Argo CD via l'API Kubernetes | `url` (liens), `namespace`, `ignore`, `context` |
+| `activity` | Fil des déploiements, alertes, sauvegardes et redémarrages | `url` (Prometheus, facultatif), `cronjobs`, `hours`, `limit`, `context` |
 | `certificates` | Certificats cert-manager via l'API Kubernetes | `warnDays`, `namespaces`, `exclude`, `context` |
 | `backups` | Sauvegardes CloudNativePG (détectées) et CronJobs | `cronjobs` (`namespace/nom`), `maxAgeHours`, `context` |
 | `gatus` | API Gatus | `url`, `publicUrl` |
@@ -91,7 +92,11 @@ une adresse iCal privée (`PORTAL_VAR_ICAL_URL`).
 
 Le bandeau résume en continu tous les widgets `kubernetes`, `argocd`, `gatus`,
 `alerts`, `certificates` et `backups` de la configuration, quelle que soit la
-page affichée. Les alertes de sévérité `info` n'y comptent pas.
+page affichée. Les alertes de sévérité `info` n'y comptent pas. Un indicateur
+qui change d'état s'anime une fois et affiche depuis quand ; un clic amène au
+widget concerné. Le liseré du bandeau, l'icône et le titre de l'onglet
+reflètent le pire état. `Ctrl+K` ouvre la palette de commandes (pages, liens
+des widgets `bookmarks`, thème, édition).
 
 ## Sécurité
 

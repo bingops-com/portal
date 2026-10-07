@@ -32,6 +32,10 @@ type SummaryItem struct {
 	Label  string `json:"label"`
 	State  string `json:"state"` // ok | warn | down | unknown
 	Detail string `json:"detail"`
+	// Type is the widget type behind the readout; Since is when the state
+	// last changed, when the server has seen it change.
+	Type  string     `json:"type,omitempty"`
+	Since *time.Time `json:"since,omitempty"`
 }
 
 // Summarizer is implemented by ops results that feed the header band.
@@ -60,6 +64,7 @@ var Registry = map[string]Provider{
 	"alerts":       {TTL: 30 * time.Second, Fetch: fetchAlerts},
 	"certificates": {TTL: 5 * time.Minute, Fetch: fetchCertificates},
 	"backups":      {TTL: 2 * time.Minute, Fetch: fetchBackups},
+	"activity":     {TTL: 45 * time.Second, Fetch: fetchActivity},
 	"bookmarks":    {TTL: 45 * time.Second, Fetch: fetchBookmarks},
 	"rss":          {TTL: 10 * time.Minute, Fetch: fetchRSS},
 	"videos":       {TTL: 15 * time.Minute, Fetch: fetchVideos},

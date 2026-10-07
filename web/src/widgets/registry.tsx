@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Options } from '../api';
-import { AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, EventsWidget, GatusWidget, PrometheusWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, gatusBadge, workloadsBadge } from './ops';
+import { ActivityWidget, AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, EventsWidget, GatusWidget, PrometheusWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, gatusBadge, workloadsBadge } from './ops';
 import { CalendarWidget, ClockWidget, MarketsWidget, PostsWidget, RssWidget, SearchWidget, VideosWidget, WeatherWidget, weatherBadge } from './info';
 
 export type Field = {
@@ -96,6 +96,19 @@ const list: WidgetMeta[] = [
     defaults: { url: '' },
     fields: [promUrl, { key: 'ignore', label: 'Alertes à ignorer', kind: 'lines', help: 'Un nom par ligne. Watchdog et InfoInhibitor le sont déjà.' }],
     component: AlertsWidget, badge: alertsBadge,
+  },
+  {
+    type: 'activity', label: 'Activité récente', group: 'Ops', refresh: 60,
+    description: 'Fil chronologique des déploiements, alertes, sauvegardes et redémarrages.',
+    defaults: { hours: 72, limit: 12, url: '', cronjobs: [] },
+    fields: [
+      { key: 'url', label: 'Adresse de Prometheus', kind: 'text', help: 'Facultatif : ajoute les alertes au fil.' },
+      { key: 'cronjobs', label: 'CronJobs de sauvegarde', kind: 'lines', help: 'Un par ligne, au format namespace/nom.' },
+      { key: 'hours', label: 'Période (heures)', kind: 'number' },
+      limit('Nombre d’entrées affichées.'),
+      context,
+    ],
+    component: ActivityWidget,
   },
   {
     type: 'certificates', label: 'Certificats', group: 'Ops', refresh: 300,

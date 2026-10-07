@@ -32,6 +32,35 @@ type Server struct {
 	ReadOnly bool
 	// Auth, when set, requires a login for every write. Reads stay open.
 	Auth *auth.Auth
+
+	// transitions remembers each readout's last state to date its changes.
+	transitionsMu sync.Mutex
+	transitions   map[string]transition
+}
+
+type transition struct {
+	state string
+	since *time.Time
+}
+
+// stamp sets item.Since to the moment its state last changed. The first
+// observation after a start has no known date.
+func (s *Server) stamp(item *providers.SummaryItem) {
+	s.transitionsMu.Lock()
+	defer s.transitionsMu.Unlock()
+	if s.transitions == nil {
+		s.transitions = map[string]transition{}
+	}
+	prev, seen := s.transitions[item.Label]
+	switch {
+	case !seen:
+		prev = transition{state: item.State}
+	case prev.state != item.State:
+		now := time.Now()
+		prev = transition{state: item.State, since: &now}
+	}
+	s.transitions[item.Label] = prev
+	item.Since = prev.since
 }
 
 type dataResponse struct {
@@ -254,6 +283,10 @@ func (s *Server) getSummary(w http.ResponseWriter, _ *http.Request) {
 		}()
 	}
 	wg.Wait()
+	for i := range items {
+		items[i].Type = sources[i].typ
+		s.stamp(&items[i])
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 

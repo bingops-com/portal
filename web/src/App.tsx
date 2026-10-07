@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, LogOut, Monitor, Moon, PencilLine, Plus, RotateCcw, Sun, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Command as CommandIcon, Download, LogOut, Monitor, Moon, PencilLine, Plus, RotateCcw, Sun, Trash2 } from 'lucide-react';
 import { stringify } from 'yaml';
 import { api, type Page, type PortalConfig, type SummaryItem } from './api';
 import { Mark } from './components/bits';
 import { PageEditor, PageView } from './components/PageView';
+import { Palette, type Command } from './components/Palette';
+import { ago } from './format';
 
 type Theme = 'auto' | 'light' | 'dark';
 
@@ -56,6 +58,41 @@ function useSummary(enabled: boolean): SummaryItem[] {
   return items;
 }
 
+const rank = { ok: 0, unknown: 1, warn: 2, down: 3 } as const;
+const stateColors = { ok: '#1443d6', unknown: '#1443d6', warn: '#c77700', down: '#c81e45' };
+
+// Mirrors the worst state in the tab icon, for when the portal is pinned.
+function setFavicon(color: string) {
+  let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'icon';
+    document.head.appendChild(link);
+  }
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='${color}'/><path d='M9 8v16h14' fill='none' stroke='#fff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/></svg>`;
+  link.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+// Labels of the readouts whose state changed on the latest refresh; they
+// pulse once so a change catches the eye.
+function useChanged(items: SummaryItem[]): Set<string> {
+  const previous = useRef<Map<string, string>>(new Map());
+  const [changed, setChanged] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const next = new Set<string>();
+    for (const it of items) {
+      const before = previous.current.get(it.label);
+      if (before !== undefined && before !== it.state) next.add(it.label);
+      previous.current.set(it.label, it.state);
+    }
+    if (next.size === 0) return;
+    setChanged(next);
+    const timer = setTimeout(() => setChanged(new Set()), 2400);
+    return () => clearTimeout(timer);
+  }, [items]);
+  return changed;
+}
+
 const themeLabels: Record<Theme, string> = { auto: 'Thème : système', light: 'Thème : clair', dark: 'Thème : sombre' };
 
 export function App() {
@@ -69,6 +106,10 @@ export function App() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [theme, cycleTheme] = useTheme(config?.theme);
   const summary = useSummary(config !== null);
+  const changed = useChanged(summary);
+  const [palette, setPalette] = useState(false);
+  const worst = summary.reduce<SummaryItem['state']>((w, s) => (rank[s.state] > rank[w] ? s.state : w), 'ok');
+  const troubled = summary.filter((s) => s.state === 'warn' || s.state === 'down').length;
 
   const load = useCallback(() => {
     api.config().then(setConfig).catch((err: Error) => setFailure(err.message));
@@ -87,8 +128,20 @@ export function App() {
   const page = pages[index];
 
   useEffect(() => {
-    if (config && page) document.title = `${page.name} | ${config.title}`;
-  }, [config, page]);
+    if (config && page) document.title = `${troubled ? `(${troubled}) ` : ''}${page.name} | ${config.title}`;
+  }, [config, page, troubled]);
+  useEffect(() => setFavicon(stateColors[worst]), [worst]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPalette((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const go = (i: number) => {
     setConfirmDelete(false);
@@ -167,6 +220,44 @@ export function App() {
     URL.revokeObjectURL(link.href);
   };
 
+  // Brings the widget behind a readout into view, switching page if needed.
+  const reveal = (type?: string) => {
+    if (!type || draft) return;
+    const has = (p: Page) => p.columns.some((c) => c.widgets.some((w) => w.type === type));
+    const target = has(pages[index]) ? index : pages.findIndex(has);
+    if (target < 0) return;
+    if (target !== index) go(target);
+    setTimeout(() => {
+      const el = document.querySelector(`.widget-${type}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('widget-flash');
+      setTimeout(() => el.classList.remove('widget-flash'), 1800);
+    }, 80);
+  };
+
+  const commands = useMemo<Command[]>(() => {
+    if (!config) return [];
+    const list: Command[] = pages.map((p, i) => ({ label: p.name, hint: 'Page', run: () => go(i) }));
+    for (const p of config.pages)
+      for (const c of p.columns)
+        for (const w of c.widgets)
+          if (w.type === 'bookmarks')
+            for (const g of w.options?.groups ?? [])
+              for (const l of g.links ?? []) if (l.url) list.push({ label: l.title, hint: g.title || 'Lien', run: () => window.open(l.url, '_blank', 'noreferrer') });
+    list.push({ label: 'Changer de thème', hint: 'Action', run: cycleTheme });
+    if (!config.readOnly && !draft) {
+      list.push(
+        config.loginRequired && !config.user
+          ? { label: 'Se connecter pour modifier', hint: 'Action', run: () => window.location.assign(loginUrl) }
+          : { label: 'Modifier la disposition', hint: 'Action', run: startEdit },
+      );
+    }
+    if (config.user) list.push({ label: 'Se déconnecter', hint: 'Action', run: () => window.location.assign('/auth/logout') });
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, pages, draft, theme, index]);
+
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
   const dirty = useMemo(() => draft !== null && JSON.stringify(draft) !== JSON.stringify(config?.pages), [draft, config]);
 
@@ -185,7 +276,7 @@ export function App() {
 
   return (
     <>
-      <header className="band">
+      <header className="band" data-state={worst}>
         <div className="band-top">
           <a className="wordmark" href="/" onClick={(e) => { e.preventDefault(); go(0); }}>
             {config.title}
@@ -198,6 +289,9 @@ export function App() {
             ))}
           </nav>
           <div className="band-tools">
+            <button className="band-btn band-btn-text band-btn-keys" onClick={() => setPalette(true)} aria-label="Ouvrir la palette de commandes" title="Palette de commandes">
+              <CommandIcon size={15} aria-hidden /> <kbd>Ctrl K</kbd>
+            </button>
             <button className="band-btn" onClick={cycleTheme} aria-label={themeLabels[theme]} title={themeLabels[theme]}>
               <ThemeIcon size={17} aria-hidden />
             </button>
@@ -221,12 +315,17 @@ export function App() {
         {summary.length > 0 && (
           <ul className="readouts" aria-label="État du lab">
             {summary.map((s) => (
-              <li key={s.label}>
-                <Mark state={s.state} />
-                <span className="readout-text">
-                  <span className="readout-label">{s.label}</span>
-                  <span className="readout-detail">{s.detail}</span>
-                </span>
+              <li key={s.label} className={changed.has(s.label) ? 'readout-changed' : undefined}>
+                <button onClick={() => reveal(s.type)} title="Voir le détail">
+                  <Mark state={s.state} />
+                  <span className="readout-text">
+                    <span className="readout-label">
+                      {s.label}
+                      {s.since && s.state !== 'ok' && <span className="readout-since">{ago(s.since)}</span>}
+                    </span>
+                    <span className="readout-detail">{s.detail}</span>
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
@@ -281,6 +380,8 @@ export function App() {
           </button>
         </p>
       )}
+
+      {palette && <Palette commands={commands} onClose={() => setPalette(false)} />}
 
       <main className="page">
         {draft ? <PageEditor key={index} page={page} onChange={updatePage} /> : <PageView key={page.slug} page={page} />}
