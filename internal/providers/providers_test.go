@@ -3,10 +3,12 @@ package providers
 import (
 	"bytes"
 	"context"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -521,7 +523,7 @@ func TestActivityMergesSourcesNewestFirst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	items := out.(map[string]any)["items"].([]activityItem)
+	items := out.(map[string]any)["items"].([]ActivityItem)
 	var got []string
 	for _, it := range items {
 		got = append(got, it.Kind+":"+it.Title)
@@ -696,5 +698,144 @@ func TestGatusUsesSevenDayUptimeWhenAvailable(t *testing.T) {
 	}
 	if eps[0].Window != "récent" || eps[0].Uptime != 100 {
 		t.Errorf("api = %+v", eps[0])
+	}
+}
+
+func TestIncidentLifecycle(t *testing.T) {
+	log := &IncidentLog{}
+	path := filepath.Join(t.TempDir(), "incidents.json")
+	log.SetPath(path)
+	done := make(chan struct{})
+	suspects := func() []ActivityItem {
+		defer close(done)
+		return []ActivityItem{{Kind: "deploy", Title: "web", Time: time.Now()}}
+	}
+	item := SummaryItem{Label: "Cluster", Type: "kubernetes", State: "ok", Detail: "fine"}
+	log.Observe(item, suspects)
+	if len(log.snapshot()) != 0 {
+		t.Fatal("a healthy readout must not open an incident")
+	}
+	item.State, item.Detail = "warn", "1 pod en difficulté"
+	log.Observe(item, suspects)
+	<-done
+	log.Observe(item, nil) // unchanged: still one incident
+	item.State = "unknown"
+	log.Observe(item, nil) // unreadable source: neither closes nor reopens
+	item.State, item.Detail = "down", "0/1 nœud prêt"
+	log.Observe(item, nil)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for len(log.snapshot()[0].Suspects) == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	got := log.snapshot()
+	if len(got) != 1 || got[0].State != "down" || got[0].Closed != nil || len(got[0].Suspects) != 1 {
+		t.Fatalf("%+v", got)
+	}
+	log.Observe(SummaryItem{Label: "Échéances", Type: "deadlines", State: "warn"}, nil)
+	if len(log.snapshot()) != 1 {
+		t.Fatal("an approaching deadline is not an incident")
+	}
+	item.State = "ok"
+	log.Observe(item, nil)
+	if got = log.snapshot(); got[0].Closed == nil {
+		t.Fatal("a healthy readout must close its incident")
+	}
+
+	reloaded := &IncidentLog{}
+	reloaded.SetPath(path)
+	item.State = "warn"
+	reloaded.Observe(item, nil)
+	if got = reloaded.snapshot(); len(got) != 2 || got[1].ID != 2 || got[0].Closed == nil {
+		t.Fatalf("after reload: %+v", got)
+	}
+}
+
+func TestLagOf(t *testing.T) {
+	cases := []struct{ running, latest, lag, state string }{
+		{"v2.14.10", "v3.5.4", "1 version majeure de retard", "warn"},
+		{"v1.36.1", "v1.36.5", "correctifs disponibles", "none"},
+		{"1.30.0", "v1.33.2", "3 versions mineures de retard", "warn"},
+		{"v1.13.3", "v1.14.2", "1 version mineure de retard", "none"},
+		{"2026.5.5", "version/2026.5.5", "à jour", "ok"},
+		{"v5.38.0", "v5.37.0", "à jour", "ok"},
+		{"latest", "v1.0.0", "comparaison impossible", "unknown"},
+	}
+	for _, c := range cases {
+		if lag, state := lagOf(c.running, c.latest); lag != c.lag || state != c.state {
+			t.Errorf("lagOf(%q, %q) = %q, %q; want %q, %q", c.running, c.latest, lag, state, c.lag, c.state)
+		}
+	}
+	for image, want := range map[string]string{"quay.io/argoproj/argocd:v2.14.10": "v2.14.10", "reg:5000/app": "", "ghcr.io/x/y:1.2@sha256:abc": "1.2"} {
+		if got := imageTag(image); got != want {
+			t.Errorf("imageTag(%q) = %q, want %q", image, got, want)
+		}
+	}
+}
+
+func TestDeadlinesSortAndGrade(t *testing.T) {
+	now := time.Now()
+	day := func(n int) string { return now.AddDate(0, 0, n).Format("2006-01-02") }
+	cert := custom(certificates, "Certificate", "web", "site", now, map[string]any{
+		"spec":   map[string]any{"dnsNames": []any{"site.example"}},
+		"status": map[string]any{"notAfter": now.AddDate(0, 0, 80).UTC().Format(time.RFC3339)},
+	})
+	out, err := fetchDeadlines(context.Background(), platformDeps(nil, cert), map[string]any{
+		"warnDays": 30,
+		"items": []any{
+			map[string]any{"title": "Jeton CI", "date": day(20)},
+			map[string]any{"title": "Domaine", "date": day(3), "note": "renouveler"},
+			map[string]any{"title": "Ancien", "date": day(-2)},
+			map[string]any{"title": "Mal saisi", "date": "demain"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := out.(deadlinesResult)
+	var got []string
+	for _, it := range res.Items {
+		got = append(got, it.Title+":"+it.State)
+	}
+	want := "Ancien:down,Domaine:down,Jeton CI:warn,site.example:ok"
+	if strings.Join(got, ",") != want {
+		t.Errorf("got %v, want %s", got, want)
+	}
+	if len(res.Failed) != 1 || res.Items[1].Days != 3 {
+		t.Errorf("failed=%v days=%d", res.Failed, res.Items[1].Days)
+	}
+	if s := res.Summary(); s.State != "down" || s.Detail != "Ancien : dépassée" {
+		t.Errorf("summary = %+v", s)
+	}
+}
+
+func TestForecastDaysUntilFull(t *testing.T) {
+	vec := func(rows ...string) string { return `{"data":{"result":[` + strings.Join(rows, ",") + `]}}` }
+	row := func(mount, value string) string {
+		return `{"metric":{"instance":"n1","mountpoint":"` + mount + `"},"value":[1,"` + value + `"]}`
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("query")
+		switch {
+		case strings.HasPrefix(q, "deriv("):
+			// /var loses 1 GiB a day, /data grows free space.
+			w.Write([]byte(vec(row("/var", "-12427.57"), row("/data", "50"))))
+		case strings.HasPrefix(q, "node_filesystem_size_bytes"):
+			w.Write([]byte(vec(row("/var", "107374182400"), row("/data", "107374182400"), row("/etc/hosts", "1000"))))
+		default:
+			w.Write([]byte(vec(row("/var", "10737418240"), row("/data", "53687091200"), row("/etc/hosts", "500"))))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	out, err := fetchForecast(context.Background(), nil, map[string]any{"url": srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := out.(map[string]any)["items"].([]forecastRow)
+	if len(rows) != 2 || rows[0].Name != "/var" || rows[0].Days == nil || math.Abs(*rows[0].Days-10) > 0.1 || rows[0].State != "warn" || math.Abs(rows[0].Used-90) > 0.1 {
+		t.Fatalf("%+v", rows)
+	}
+	if rows[1].Name != "/data" || rows[1].Days != nil || rows[1].State != "ok" {
+		t.Errorf("%+v", rows[1])
 	}
 }

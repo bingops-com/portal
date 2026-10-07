@@ -76,6 +76,10 @@ une adresse iCal privée (`PORTAL_VAR_ICAL_URL`).
 | `events` | API Kubernetes (avertissements) | `namespaces`, `limit`, `context` |
 | `argocd` | Applications Argo CD via l'API Kubernetes | `url` (liens), `namespace`, `ignore`, `context` |
 | `activity` | Fil des déploiements, alertes, sauvegardes et redémarrages | `url` (Prometheus, facultatif), `cronjobs`, `hours`, `limit`, `context` |
+| `incidents` | Journal tenu par le serveur d'après le bandeau | `days`, `limit` |
+| `deadlines` | Certificats, échéances saisies, fins de support (endoflife.date) | `items: [{title, date, note}]`, `eol: [{product, cycle, title}]`, `certificates`, `warnDays` |
+| `versions` | Version en service face à la dernière release GitHub | `items: [{name, repo, source}]` (`source` : `namespace/workload`, `node:kubelet`, `node:os`), `token` |
+| `forecast` | Jours avant saturation des disques (Prometheus, node-exporter) | `url`, `hours`, `mountpoints` |
 | `gameserver` | Requête Steam (A2S) vers un serveur de jeu | `address` (`hôte:port` UDP) |
 | `releases` | Dernières versions de dépôts GitHub | `repos`, `token` (facultatif) |
 | `pulls` | Pull requests ouvertes d'un dépôt GitHub | `repo`, `token` (facultatif), `limit` |
@@ -122,7 +126,11 @@ Autres comportements :
   widget (`portal_fetch_total`, `portal_fetch_duration_seconds_sum`) et l'état
   de chaque indicateur du bandeau (`portal_readout_state`) ;
 - l'état des indicateurs et la date de leur dernier changement sont conservés
-  dans `PORTAL_DATA/readouts.json`.
+  dans `PORTAL_DATA/readouts.json` ;
+- le serveur relève le bandeau chaque minute, même sans visiteur : un
+  indicateur dégradé ouvre un incident, son retour au vert le clôt. Le journal
+  (`PORTAL_DATA/incidents.json`, 300 entrées) garde la durée et les
+  déploiements, redémarrages et sauvegardes vus dans la demi-heure précédente.
 
 ## Sécurité
 

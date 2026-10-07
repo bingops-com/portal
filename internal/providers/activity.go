@@ -10,8 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// activityItem is one dated fact of the lab's recent life.
-type activityItem struct {
+// ActivityItem is one dated fact of the lab's recent life.
+type ActivityItem struct {
 	Time   time.Time `json:"time"`
 	Kind   string    `json:"kind"` // deploy | alert | backup | restart
 	Title  string    `json:"title"`
@@ -38,10 +38,10 @@ func fetchActivity(ctx context.Context, d *Deps, opts map[string]any) (any, erro
 		return nil, err
 	}
 	since := time.Now().Add(-time.Duration(clamp(o.Hours, 72, 1, 24*30)) * time.Hour)
-	items := []activityItem{}
+	items := []ActivityItem{}
 	add := func(t time.Time, kind, title, detail, state string) {
 		if t.After(since) {
-			items = append(items, activityItem{t, kind, title, detail, state})
+			items = append(items, ActivityItem{t, kind, title, detail, state})
 		}
 	}
 

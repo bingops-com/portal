@@ -666,3 +666,149 @@ export function PullsWidget({ data }: Props<Pulls>) {
   );
 }
 export const pullsBadge = (d: Pulls) => `${d.total} ouvertes`;
+
+// --- Incidents ---
+
+type Incident = { id: number; label: string; state: State; detail: string; opened: string; closed?: string; suspects?: unknown[] };
+type Incidents = { open: Incident[]; recent: Incident[]; days: number; count: number; minutes: number };
+
+function span(from: string, to?: string): string {
+  const minutes = Math.max(1, Math.round(((to ? new Date(to).getTime() : Date.now()) - new Date(from).getTime()) / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 48 * 60) return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+  return `${Math.round(minutes / 1440)} j`;
+}
+
+export function IncidentsWidget({ data, widgetId }: Props<Incidents>) {
+  const detail = useDetail();
+  const open = (it: Incident) =>
+    detail ? () => detail({ title: it.label, subtitle: it.closed ? `Incident clos, ${span(it.opened, it.closed)}` : 'Incident en cours', load: () => api.detail<DetailData>(widgetId, { id: String(it.id) }) }) : undefined;
+  const row = (it: Incident) => (
+    <li key={it.id} className="row row-top">
+      <Mark state={it.closed ? 'ok' : it.state} label={it.closed ? 'Clos' : 'En cours'} />
+      <div className="row-main">
+        <Open onOpen={open(it)}>{it.label}</Open>
+        <span className="row-text">{it.detail}</span>
+      </div>
+      <span className="row-aside">
+        {span(it.opened, it.closed)}
+        <small>{it.closed ? ago(it.closed) : 'en cours'}</small>
+      </span>
+    </li>
+  );
+  return (
+    <>
+      <dl className="facts facts-2">
+        <div>
+          <dt>Incidents sur {data.days} j</dt>
+          <dd>{data.count}</dd>
+        </div>
+        <div>
+          <dt>Durée cumulée</dt>
+          <dd>{data.minutes < 120 ? `${data.minutes} min` : `${Math.round(data.minutes / 60)} h`}</dd>
+        </div>
+      </dl>
+      {data.open.length + data.recent.length === 0 ? (
+        <Empty>Aucun incident relevé. Le journal se remplit tout seul quand un indicateur du bandeau se dégrade.</Empty>
+      ) : (
+        <ul className="rows">
+          {data.open.map(row)}
+          {data.recent.map(row)}
+        </ul>
+      )}
+    </>
+  );
+}
+export const incidentsBadge = (d: Incidents) => (d.open.length ? `${d.open.length} en cours` : 'aucun en cours');
+
+// --- Deadlines ---
+
+type Deadlines = { failed?: string[]; items: { title: string; kind: string; note?: string; date: string; days: number; state: State }[] };
+
+export function DeadlinesWidget({ data, options }: Props<Deadlines>) {
+  if (data.items.length === 0) return <Empty>Aucune échéance suivie. Ajoutez vos jetons et noms de domaine dans les réglages.</Empty>;
+  return (
+    <>
+      <More items={data.items} limit={Number(options.limit) || 7}>
+        {(shown) => (
+          <ul className="rows">
+            {shown.map((d) => (
+              <li key={d.kind + d.title} className="row">
+                <Mark state={d.state} label={d.state === 'ok' ? 'Lointaine' : d.state === 'warn' ? 'Proche' : 'Urgente'} />
+                <div className="row-main">
+                  <span className="row-title">{d.title}</span>
+                  {d.note && <span className="row-sub">{d.note}</span>}
+                </div>
+                <span className="row-aside">
+                  {d.days < 0 ? 'Dépassée' : d.days === 0 ? 'Aujourd’hui' : `${d.days} j`}
+                  <small>{new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' })}</small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </More>
+      {data.failed && data.failed.length > 0 && <p className="note">{data.failed[0]}</p>}
+    </>
+  );
+}
+
+// --- Version lag ---
+
+type Versions = { current: number; items: { name: string; running: string; latest: string; lag: string; state: State; url?: string }[] };
+
+export function VersionsWidget({ data }: Props<Versions>) {
+  return (
+    <ul className="rows">
+      {data.items.map((v) => (
+        <li key={v.name} className="row">
+          <Mark state={v.state === 'none' ? 'unknown' : v.state} label={v.lag} />
+          <div className="row-main">
+            {v.url ? (
+              <a className="row-title" {...ext(v.url)}>
+                {v.name}
+              </a>
+            ) : (
+              <span className="row-title">{v.name}</span>
+            )}
+            <span className="row-sub">{v.lag}</span>
+          </div>
+          <span className="row-aside">
+            {v.running || 'n/d'}
+            {v.latest && v.state !== 'ok' && <small>dernière : {v.latest}</small>}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+export const versionsBadge = (d: Versions) => `${d.current}/${d.items.length} à jour`;
+
+// --- Saturation forecast ---
+
+type Forecast = { hours: number; items: { name: string; used: number; free: number; days: number | null; state: State }[] };
+
+export function ForecastWidget({ data }: Props<Forecast>) {
+  return (
+    <ul className="rows">
+      {data.items.map((f) => (
+        <li key={f.name} className={`row row-wrap stat-${f.state}`}>
+          <Mark state={f.state} />
+          <div className="row-main">
+            <span className="row-title">{f.name}</span>
+            <span className="row-sub">
+              {formatStat(f.used, 'percent')} utilisés, {formatStat(f.free, 'bytes')} libres
+            </span>
+          </div>
+          <span className="row-aside">
+            {f.days === null ? 'Stable' : f.days < 1 ? 'Plein sous 24 h' : `Plein dans ${Math.round(f.days)} j`}
+            <small>tendance sur {data.hours} h</small>
+          </span>
+          <span className="meter meter-row" aria-hidden>
+            <i style={{ width: `${Math.min(100, f.used)}%` }} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}

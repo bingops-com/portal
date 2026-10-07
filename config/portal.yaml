@@ -17,6 +17,15 @@ pages:
             title: Alertes
             options:
               url: ${PORTAL_VAR_PROMETHEUS_URL}
+          - type: incidents
+            title: Incidents
+          - type: deadlines
+            title: Échéances
+            options:
+              warnDays: 30
+              eol:
+                - { product: kubernetes, cycle: "" }
+              items: []
           - type: backups
             title: Sauvegardes
             options:
@@ -41,6 +50,10 @@ pages:
                 - { label: Mémoire, query: 'avg(100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))', format: percent, warn: 75, danger: 90 }
                 - { label: Disque /var, query: 'avg(100 * (1 - node_filesystem_avail_bytes{mountpoint="/var",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/var",fstype!~"tmpfs|overlay"}))', format: percent, warn: 75, danger: 90 }
                 - { label: Pods actifs, query: 'sum(kube_pod_status_phase{phase="Running"} == 1)', format: number }
+          - type: forecast
+            title: Saturation des disques
+            options:
+              url: ${PORTAL_VAR_PROMETHEUS_URL}
           - type: activity
             title: Activité récente
             options:

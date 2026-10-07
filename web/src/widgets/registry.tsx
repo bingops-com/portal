@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Options } from '../api';
-import { ActivityWidget, AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, EventsWidget, GameServerWidget, GatusWidget, PrometheusWidget, PullsWidget, ReleasesWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, gameServerBadge, gatusBadge, pullsBadge, workloadsBadge } from './ops';
+import { ActivityWidget, AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, DeadlinesWidget, EventsWidget, ForecastWidget, GameServerWidget, GatusWidget, IncidentsWidget, PrometheusWidget, PullsWidget, ReleasesWidget, VersionsWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, gameServerBadge, gatusBadge, incidentsBadge, pullsBadge, versionsBadge, workloadsBadge } from './ops';
 import { CalendarWidget, ClockWidget, MarketsWidget, PostsWidget, RssWidget, SearchWidget, VideosWidget, WeatherWidget, weatherBadge } from './info';
 
 export type Field = {
@@ -122,6 +122,72 @@ const list: WidgetMeta[] = [
       context,
     ],
     component: ActivityWidget,
+  },
+  {
+    type: 'incidents', label: 'Journal d’incidents', group: 'Ops', refresh: 30,
+    description: 'Incidents ouverts et clos automatiquement d’après le bandeau, avec leur durée et ce qui a changé juste avant.',
+    defaults: { days: 30, limit: 6 },
+    fields: [
+      { key: 'days', label: 'Période des statistiques (jours)', kind: 'number' },
+      limit('Nombre d’incidents clos affichés.'),
+    ],
+    component: IncidentsWidget, badge: incidentsBadge,
+  },
+  {
+    type: 'deadlines', label: 'Échéances', group: 'Ops', refresh: 1800,
+    description: 'Compte à rebours de tout ce qui expire : certificats, jetons, noms de domaine, fins de support.',
+    defaults: { warnDays: 30, certificates: true, items: [], eol: [{ product: 'kubernetes', cycle: '' }] },
+    fields: [
+      {
+        key: 'items', label: 'Échéances saisies', kind: 'list', itemName: 'une échéance',
+        item: [
+          { key: 'title', label: 'Nom', kind: 'text', placeholder: 'Jeton GitHub du portail' },
+          { key: 'date', label: 'Date', kind: 'text', placeholder: '2027-01-31', help: 'Au format AAAA-MM-JJ.' },
+          { key: 'note', label: 'Note', kind: 'text', wide: true },
+        ],
+      },
+      {
+        key: 'eol', label: 'Fins de support (endoflife.date)', kind: 'list', itemName: 'un produit',
+        item: [
+          { key: 'product', label: 'Produit', kind: 'text', placeholder: 'kubernetes' },
+          { key: 'cycle', label: 'Version', kind: 'text', placeholder: '1.36', help: 'Vide pour kubernetes : version du cluster.' },
+          { key: 'title', label: 'Nom affiché', kind: 'text' },
+        ],
+      },
+      { key: 'certificates', label: 'Inclure les certificats cert-manager', kind: 'bool' },
+      { key: 'warnDays', label: 'Signaler à moins de (jours)', kind: 'number' },
+      context,
+    ],
+    component: DeadlinesWidget,
+  },
+  {
+    type: 'versions', label: 'Retard de versions', group: 'Ops', refresh: 3600,
+    description: 'Version en service de chaque composant face à la dernière publiée sur GitHub.',
+    defaults: { items: [{ name: 'Kubernetes', repo: 'kubernetes/kubernetes', source: 'node:kubelet' }] },
+    fields: [
+      {
+        key: 'items', label: 'Composants', kind: 'list', itemName: 'un composant',
+        item: [
+          { key: 'name', label: 'Nom', kind: 'text', placeholder: 'Argo CD' },
+          { key: 'repo', label: 'Dépôt GitHub', kind: 'text', placeholder: 'argoproj/argo-cd' },
+          { key: 'source', label: 'Version en service', kind: 'text', wide: true, placeholder: 'argocd-system/argocd-server', help: 'namespace/nom d’un workload (étiquette de son image), node:kubelet ou node:os.' },
+        ],
+      },
+      { key: 'token', label: 'Jeton GitHub', kind: 'text', placeholder: '${PORTAL_VAR_GITHUB_TOKEN}', help: 'Facultatif. Sans jeton, GitHub limite à 60 requêtes par heure.' },
+      context,
+    ],
+    component: VersionsWidget, badge: versionsBadge,
+  },
+  {
+    type: 'forecast', label: 'Prévision de saturation', group: 'Ops', refresh: 300,
+    description: 'Dans combien de jours chaque disque sera plein, au rythme actuel.',
+    defaults: { url: '', hours: 72 },
+    fields: [
+      promUrl,
+      { key: 'hours', label: 'Tendance calculée sur (heures)', kind: 'number' },
+      { key: 'mountpoints', label: 'Points de montage', kind: 'lines', help: 'Un par ligne. Vide : tous les disques de plus de 2 Gio.' },
+    ],
+    component: ForecastWidget,
   },
   {
     type: 'gameserver', label: 'Serveur de jeu', group: 'Ops', refresh: 30,

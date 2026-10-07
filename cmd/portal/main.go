@@ -44,6 +44,7 @@ func main() {
 		ReadOnly:  os.Getenv("PORTAL_READONLY") == "true",
 		StatePath: filepath.Join(env("PORTAL_DATA", "data"), "readouts.json"),
 	}
+	providers.Incidents.SetPath(filepath.Join(env("PORTAL_DATA", "data"), "incidents.json"))
 	if hosts := os.Getenv("PORTAL_INTERNAL_HOSTS"); hosts != "" {
 		providers.SetInternalHosts(strings.Split(hosts, ","))
 	}
@@ -68,6 +69,7 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	go srv.Watch(ctx, time.Minute)
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)

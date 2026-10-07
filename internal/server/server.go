@@ -287,23 +287,27 @@ func (s *Server) postPreview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toResponse(s.fetch(body.Type, body.Options)))
 }
 
-// getSummary condenses every ops widget of the configuration into the
-// header band readouts, reusing the widgets' cached results.
-func (s *Server) getSummary(w http.ResponseWriter, _ *http.Request) {
+// summarize condenses every ops widget of the configuration into the header
+// band readouts, reusing the widgets' cached results, and feeds the incident
+// log with their states.
+func (s *Server) summarize() ([]providers.SummaryItem, error) {
 	cfg, _, err := s.Store.Effective()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, err
 	}
 	type source struct {
 		typ  string
 		opts map[string]any
 	}
 	var sources []source
+	var activity map[string]any
 	seen := map[string]bool{}
 	for _, p := range cfg.Pages {
 		for _, c := range p.Columns {
 			for _, wd := range c.Widgets {
+				if wd.Type == "activity" && activity == nil {
+					activity = wd.Options
+				}
 				if _, ok := providers.SummaryLabels[wd.Type]; !ok {
 					continue
 				}
@@ -329,11 +333,43 @@ func (s *Server) getSummary(w http.ResponseWriter, _ *http.Request) {
 		}()
 	}
 	wg.Wait()
+	suspects := func() []providers.ActivityItem {
+		ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
+		defer cancel()
+		return providers.RecentChanges(ctx, s.Deps, activity)
+	}
 	for i := range items {
 		items[i].Type = sources[i].typ
 		s.stamp(&items[i])
+		providers.Incidents.Observe(items[i], suspects)
+	}
+	return items, nil
+}
+
+func (s *Server) getSummary(w http.ResponseWriter, _ *http.Request) {
+	items, err := s.summarize()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+// Watch keeps the readouts, their metrics and the incident log current even
+// when nobody has the portal open.
+func (s *Server) Watch(ctx context.Context, every time.Duration) {
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		if _, err := s.summarize(); err != nil {
+			slog.Warn("readout watch failed", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 // static serves the built UI, falling back to index.html for page routes.
