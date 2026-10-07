@@ -1,0 +1,124 @@
+# Default pages of the portal. Edits made in the browser are saved to
+# $PORTAL_DATA/layout.json and take precedence until "Revenir au YAML" is used.
+# ${PORTAL_VAR_*} values are read from the server environment at fetch time
+# and are never sent to the browser.
+title: LabOps
+theme: auto # auto | light | dark
+
+pages:
+  - name: Ops
+    slug: ops
+    columns:
+      - size: small
+        widgets:
+          - type: kubernetes
+            title: Cluster
+          - type: alerts
+            title: Alertes
+            options:
+              url: ${PORTAL_VAR_PROMETHEUS_URL}
+          - type: events
+            title: Événements
+            options:
+              limit: 6
+      - size: full
+        widgets:
+          - type: prometheus
+            title: Ressources
+            options:
+              url: ${PORTAL_VAR_PROMETHEUS_URL}
+              stats:
+                - { label: CPU, query: '100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)', format: percent, warn: 70, danger: 90 }
+                - { label: Mémoire, query: 'avg(100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))', format: percent, warn: 75, danger: 90 }
+                - { label: Disque /var, query: 'avg(100 * (1 - node_filesystem_avail_bytes{mountpoint="/var",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/var",fstype!~"tmpfs|overlay"}))', format: percent, warn: 75, danger: 90 }
+                - { label: Pods actifs, query: 'sum(kube_pod_status_phase{phase="Running"} == 1)', format: number }
+          - type: argocd
+            title: Applications Argo CD
+            options:
+              url: https://argocd.lab.bingo
+          - type: workloads
+            title: Workloads
+            options:
+              exclude: [kube-system]
+              limit: 10
+      - size: small
+        widgets:
+          - type: gatus
+            title: Disponibilité
+            options:
+              url: ${PORTAL_VAR_GATUS_URL}
+          - type: bookmarks
+            title: Applications
+            options:
+              groups:
+                - title: Lab
+                  links:
+                    - { title: Argo CD, url: "https://argocd.lab.bingo", description: GitOps, checkUrl: "http://argocd-server.argocd-system.svc.cluster.local/healthz" }
+                    - { title: Grafana, url: "https://grafana.lab.bingo", description: Métriques et journaux, checkUrl: "http://monitoring-grafana.monitoring.svc.cluster.local/api/health" }
+                    - { title: Authentik, url: "https://auth.lab.bingo", description: SSO, checkUrl: "https://auth.lab.bingo/-/health/live/" }
+                    - { title: Portfolio, url: "https://www.bingops.com", description: Site public, checkUrl: "https://www.bingops.com" }
+                - title: Code
+                  links:
+                    - { title: LabOps, url: "https://github.com/bingops-com/labops", description: Source de vérité }
+                    - { title: Pull requests, url: "https://github.com/bingops-com/labops/pulls" }
+
+  - name: Veille
+    slug: veille
+    columns:
+      - size: small
+        widgets:
+          - type: weather
+            options:
+              location: Antibes
+          - type: calendar
+            title: Calendrier
+            options:
+              calendars:
+                - { title: Perso, url: "${PORTAL_VAR_ICAL_URL}" }
+          - type: clock
+            title: Horloges
+            options:
+              zones:
+                - { label: New York, timezone: America/New_York }
+                - { label: Tokyo, timezone: Asia/Tokyo }
+      - size: full
+        widgets:
+          - type: search
+            options:
+              engine: duckduckgo
+              bangs:
+                - { prefix: "!gh", url: "https://github.com/search?q={q}" }
+                - { prefix: "!k8s", url: "https://kubernetes.io/search/?q={q}" }
+                - { prefix: "!yt", url: "https://www.youtube.com/results?search_query={q}" }
+          - type: rss
+            title: Flux
+            options:
+              limit: 12
+              feeds:
+                - { title: Kubernetes, url: "https://kubernetes.io/feed.xml" }
+                - { title: CNCF, url: "https://www.cncf.io/feed/" }
+                - { title: selfh.st, url: "https://selfh.st/rss/" }
+          - type: videos
+            title: Vidéos
+            options:
+              limit: 8
+              channels:
+                - UCVls1GmFKf6WlTraIb_IaJg
+                - UC8ENHE5xdFSwx71u3fDH5Xw
+                - UCXuqSBlHAE6Xw-yeJA0Tunw
+      - size: small
+        widgets:
+          - type: markets
+            title: Marchés
+            options:
+              currency: usd
+              coins: [bitcoin, ethereum, solana, zcash]
+          - type: hackernews
+            title: Hacker News
+            options:
+              limit: 8
+          - type: reddit
+            title: Reddit
+            options:
+              subreddits: [selfhosted, kubernetes, homelab]
+              limit: 8

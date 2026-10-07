@@ -1,0 +1,24 @@
+name: Trigger Docker Rebuild
+
+# A version tag asks the infra repository to build and publish
+# ghcr.io/bingops-com/portal from labops/docker/portal, which clones this
+# repository at the tag named in its VERSION file.
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  dispatch-rebuild:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: portal
+
+    steps:
+      - name: Call rebuild-image on infra repo
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.REPO_INFRA_TOKEN }}
+          repository: bingops-com/labops
+          event-type: rebuild-image
+          client-payload: '{"image": "${{ env.IMAGE_NAME }}", "is_pr": "false"}'
