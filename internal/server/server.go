@@ -384,6 +384,9 @@ func (s *Server) static() http.Handler {
 			name = "index.html"
 			r.URL.Path = "/"
 		}
+		if strings.HasSuffix(name, ".webmanifest") {
+			w.Header().Set("Content-Type", "application/manifest+json")
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		if strings.HasPrefix(name, "assets/") {

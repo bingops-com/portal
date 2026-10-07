@@ -1,7 +1,7 @@
 export type Options = Record<string, any>;
 export type Widget = { id: string; type: string; title?: string; options?: Options };
 export type Column = { size: 'small' | 'full'; widgets: Widget[] };
-export type Page = { name: string; slug: string; group?: string; columns: Column[] };
+export type Page = { name: string; slug: string; group?: string; icon?: string; columns: Column[] };
 export type PortalConfig = {
   title: string;
   theme?: string;

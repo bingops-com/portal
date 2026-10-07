@@ -81,8 +81,47 @@ export function useFlip<T extends HTMLElement>() {
 // True inside a widget opened in large: lists then show every row.
 export const ExpandedContext = createContext(false);
 
-export function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="empty">{children}</p>;
+// Small line drawings, in the portal's blue, for moments without data.
+export function Art({ kind }: { kind: 'empty' | 'clear' | 'offline' }) {
+  return (
+    <svg className={`art art-${kind}`} viewBox="0 0 64 64" aria-hidden>
+      {kind === 'clear' && (
+        <>
+          <path d="M32 8l18 7v13c0 12-7.5 21-18 27-10.5-6-18-15-18-27V15z" className="art-fill" />
+          <path d="M32 8l18 7v13c0 12-7.5 21-18 27-10.5-6-18-15-18-27V15z" />
+          <path d="M23.5 31.5l6 6 11.5-12.5" className="art-accent" />
+        </>
+      )}
+      {kind === 'empty' && (
+        <>
+          <path d="M10 36l8-20h28l8 20v14a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4z" className="art-fill" />
+          <path d="M10 36l8-20h28l8 20v14a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4z" />
+          <path d="M10 36h13a9 9 0 0 0 18 0h13" />
+          <path d="M26 24h12" className="art-accent" />
+        </>
+      )}
+      {kind === 'offline' && (
+        <>
+          <circle cx="32" cy="32" r="22" className="art-fill" />
+          <path d="M14 26a26 26 0 0 1 36 0M21 34a16 16 0 0 1 22 0M27.5 41.5a7 7 0 0 1 9 0" />
+          <path d="M14 50L50 14" className="art-accent" />
+          <circle cx="32" cy="48" r="1.5" className="art-dot" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+// `tone="clear"` is for an absence that is good news (no alert, no incident);
+// `plain` keeps a one-line message inside a widget that has other content.
+export function Empty({ children, tone, plain }: { children: React.ReactNode; tone?: 'clear'; plain?: boolean }) {
+  if (plain) return <p className="empty">{children}</p>;
+  return (
+    <div className={`state${tone === 'clear' ? ' state-clear' : ''}`}>
+      <Art kind={tone === 'clear' ? 'clear' : 'empty'} />
+      <p>{children}</p>
+    </div>
+  );
 }
 
 // Attributes for a link that leaves the portal.

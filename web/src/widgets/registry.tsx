@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import { Activity, BellRing, Boxes, CalendarDays, CircleArrowUp, CirclePlay, Clock, CloudSun, Database, DatabaseBackup, Flame, Gamepad2, Gauge, GitBranch, GitCompareArrows, GitPullRequest, Globe, HardDrive, History, Hourglass, Layers, LayoutGrid, MessagesSquare, Network, Newspaper, Rows3, Rss, ScrollText, Search, ShieldCheck, Siren, Tag, TrendingUp, TriangleAlert, type LucideIcon } from 'lucide-react';
 import type { Options } from '../api';
 import { ActivityWidget, AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, DeadlinesWidget, DigestWidget, DriftWidget, EventsWidget, ForecastWidget, GameServerWidget, GatusWidget, IncidentsWidget, PostgresWidget, PrometheusWidget, PullsWidget, ReleasesWidget, StatusWidget, TopWidget, TopologyWidget, VersionsWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, driftBadge, gameServerBadge, gatusBadge, incidentsBadge, pullsBadge, statusBadge, versionsBadge, workloadsBadge } from './ops';
 import { CalendarWidget, ClockWidget, MarketsWidget, PostsWidget, RssWidget, SearchWidget, VideosWidget, WeatherWidget, weatherBadge } from './info';
@@ -27,6 +28,15 @@ export type WidgetMeta = {
   fields: Field[];
   component: ComponentType<{ data: any; options: Options; widgetId: string }>;
   badge?: (data: any) => string;
+};
+
+// One pictogram per widget type, shown beside its title.
+export const widgetIcons: Record<string, LucideIcon> = {
+  kubernetes: Boxes, workloads: Layers, events: TriangleAlert, argocd: GitBranch, gatus: Activity, prometheus: Gauge, alerts: BellRing,
+  bookmarks: LayoutGrid, rss: Rss, videos: CirclePlay, markets: TrendingUp, weather: CloudSun, calendar: CalendarDays, hackernews: Newspaper,
+  reddit: MessagesSquare, search: Search, clock: Clock, certificates: ShieldCheck, backups: DatabaseBackup, activity: History,
+  gameserver: Gamepad2, releases: Tag, pulls: GitPullRequest, incidents: Siren, deadlines: Hourglass, versions: CircleArrowUp,
+  forecast: HardDrive, topology: Network, digest: ScrollText, top: Flame, postgres: Database, drift: GitCompareArrows, status: Globe, section: Rows3,
 };
 
 const context: Field = { key: 'context', label: 'Contexte kubeconfig', kind: 'text', help: 'Laissez vide pour le cluster où tourne le portail.' };

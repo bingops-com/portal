@@ -54,6 +54,7 @@ courante pour la reporter dans Git, **Revenir au YAML** supprime `layout.json`.
 pages:
   - name: Ops
     group: Lab           # facultatif : un trait sépare les groupes d'onglets
+    icon: boxes          # facultatif : pictogramme de l'onglet (home, boxes, shield, history, newspaper, user, gauge, server, lock, wrench, gamepad, wallet, book)
     columns:
       - size: small        # small | full
         widgets:
@@ -125,6 +126,13 @@ workload, ressources à traiter d'une application Argo CD, étiquettes d'une
 alerte, historique d'une métrique sur 3 heures, 24 heures ou 7 jours. Dans le
 mode édition, les listes (flux, liens, métriques, fuseaux) se règlent par
 formulaire.
+
+Apparence : chaque widget porte le pictogramme de son type, les états vides
+et les erreurs sont illustrés, et l'espacement est aéré par défaut (la palette
+de commandes propose un affichage compact). Le pied de page indique l'heure du
+dernier relevé et, si l'image fournit `/version.txt`, la version déployée.
+L'application peut s'installer sur l'écran d'accueil d'un téléphone
+(`manifest.webmanifest`, `logo.svg`).
 
 Mouvement et confort (tout se fige si le système demande de réduire les
 animations) :

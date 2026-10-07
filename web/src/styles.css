@@ -2496,3 +2496,186 @@ body,
 .editbar-group input {
   width: 9rem;
 }
+
+/* ======================================================================
+   Air and identity. Spacing runs on a few variables so the compact density
+   is one override away.
+   ====================================================================== */
+
+:root {
+  --gap: 1.5rem;
+  --pad-x: 1.4rem;
+  --pad-top: 1.2rem;
+  --pad-bottom: 1.3rem;
+  --row: 0.72rem;
+  --narrow: 23rem;
+  --radius: 18px;
+}
+:root[data-density='compact'] {
+  --gap: 1rem;
+  --pad-x: 1rem;
+  --pad-top: 0.85rem;
+  --pad-bottom: 0.9rem;
+  --row: 0.5rem;
+  --narrow: 21rem;
+  --radius: 14px;
+}
+
+body {
+  line-height: 1.5;
+}
+.page {
+  max-width: 104rem;
+  padding-top: calc(var(--gap) + 0.4rem);
+  padding-bottom: 2rem;
+}
+.columns,
+.column,
+.section,
+.column-drop {
+  gap: var(--gap);
+}
+
+.widget {
+  border-color: color-mix(in srgb, var(--line) 75%, transparent);
+  box-shadow: 0 1px 2px rgb(10 27 68 / 0.04), 0 8px 24px -18px rgb(10 27 68 / 0.25);
+}
+.widget-head {
+  align-items: center;
+  gap: 0.65rem;
+  padding: var(--pad-top) var(--pad-x) 0.35rem;
+}
+.widget-head h2 {
+  font-size: 1.125rem;
+}
+.widget-body {
+  padding: 0.5rem var(--pad-x) var(--pad-bottom);
+}
+.widget-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 9px;
+  background: var(--tint);
+  color: var(--cobalt);
+}
+.row,
+.link,
+.timeline-item {
+  padding-block: var(--row);
+}
+.rows > li + li,
+.links > li + li {
+  border-top-color: color-mix(in srgb, var(--line) 60%, transparent);
+}
+.widget-search .widget-body {
+  padding: 0.75rem var(--pad-x);
+}
+.widget-search .widget-icon {
+  display: none;
+}
+.column-edit .widget-search .widget-icon {
+  display: grid;
+}
+
+/* --- Band: logo, roomier readouts ---------------------------------------- */
+
+.band-top {
+  padding: 1.1rem 0 1rem;
+}
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.logo {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+}
+.logo-tile {
+  fill: #fff;
+}
+.logo-trace {
+  fill: none;
+  stroke: var(--band);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.logo-node {
+  fill: #12b76a;
+}
+.readouts button {
+  padding-block: 1rem 1.1rem;
+}
+:root[data-density='compact'] .readouts button {
+  padding-block: 0.7rem 0.8rem;
+}
+:root[data-density='compact'] .band-top {
+  padding: 0.8rem 0 0.7rem;
+}
+
+/* --- Illustrated states ---------------------------------------------------- */
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: 0.95rem;
+  padding: 0.5rem 0 0.15rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.state p {
+  min-width: 0;
+}
+.state-problem p {
+  color: var(--down);
+}
+.art {
+  flex: none;
+  width: 3.4rem;
+  height: 3.4rem;
+  fill: none;
+  stroke: var(--cobalt);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.art-fill {
+  fill: var(--tint);
+  stroke: none;
+}
+.art-accent {
+  stroke: var(--ok);
+  stroke-width: 3.5;
+}
+.art-empty .art-accent {
+  stroke: var(--cobalt);
+}
+.art-offline .art-accent {
+  stroke: var(--down);
+}
+.art-dot {
+  fill: var(--cobalt);
+  stroke: none;
+}
+
+/* --- Footer --------------------------------------------------------------- */
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1.5rem;
+  max-width: 104rem;
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 2.5vw, 2rem) 2rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.kiosk .foot {
+  display: none;
+}

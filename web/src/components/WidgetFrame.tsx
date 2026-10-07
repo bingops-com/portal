@@ -2,8 +2,9 @@ import { Component, createContext, useContext, type ReactNode } from 'react';
 import { GripVertical, Maximize2, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 import type { Widget } from '../api';
 import { clockTime } from '../format';
+import { Art } from './bits';
 import { useWidgetData } from '../useData';
-import { registry, type WidgetMeta } from '../widgets/registry';
+import { registry, widgetIcons, type WidgetMeta } from '../widgets/registry';
 
 class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -45,6 +46,7 @@ export type EditControls = {
 function Frame({ widget, meta, badge, edit, children }: { widget: Widget; meta?: WidgetMeta; badge?: string; edit?: EditControls; children: ReactNode }) {
   const title = widget.title || meta?.label || widget.type;
   const focus = useContext(FocusContext);
+  const Icon = widgetIcons[widget.type];
   return (
     <section className={`widget widget-${widget.type}`} aria-label={title}>
       <header className="widget-head">
@@ -52,6 +54,11 @@ function Frame({ widget, meta, badge, edit, children }: { widget: Widget; meta?:
           <button className="icon-btn grip" aria-label={`Déplacer ${title}`} {...edit.handle}>
             <GripVertical size={16} aria-hidden />
           </button>
+        )}
+        {Icon && (
+          <span className="widget-icon" aria-hidden>
+            <Icon size={15} />
+          </span>
         )}
         <h2>{title}</h2>
         {badge && !edit && <span className="badge">{badge}</span>}
@@ -86,14 +93,25 @@ function DataWidget({ widget, meta, preview, edit }: { widget: Widget; meta: Wid
     <Frame widget={widget} meta={meta} edit={edit} badge={has && meta.badge ? meta.badge(state.data) : undefined}>
       {has && <View data={state.data} options={widget.options ?? {}} widgetId={widget.id} />}
       {!has && state.loading && <Skeleton type={widget.type} />}
-      {state.error && (
-        <p className={has ? 'note' : 'problem'}>
-          {has ? `Actualisation impossible${state.fetchedAt ? `, données de ${clockTime(state.fetchedAt)}` : ''}. ` : ''}
+      {state.error && has && (
+        <p className="note">
+          {`Actualisation impossible${state.fetchedAt ? `, données de ${clockTime(state.fetchedAt)}` : ''}. `}
           {state.error}
           <button className="retry" onClick={state.reload}>
             <RefreshCw size={13} aria-hidden /> Réessayer
           </button>
         </p>
+      )}
+      {state.error && !has && (
+        <div className="state state-problem">
+          <Art kind="offline" />
+          <p>
+            {state.error}
+            <button className="retry" onClick={state.reload}>
+              <RefreshCw size={13} aria-hidden /> Réessayer
+            </button>
+          </p>
+        </div>
       )}
     </Frame>
   );

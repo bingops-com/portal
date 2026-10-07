@@ -246,7 +246,7 @@ export function CalendarWidget({ data }: Props<Calendar>) {
           })}
         </ul>
       ) : (
-        <Empty>Aucun événement à venir. Ajoutez une adresse iCal dans les réglages pour voir votre agenda.</Empty>
+        <Empty plain>Aucun événement à venir. Ajoutez une adresse iCal dans les réglages pour voir votre agenda.</Empty>
       )}
       {data.failed && data.failed.length > 0 && <p className="note">Un calendrier est injoignable.</p>}
     </>

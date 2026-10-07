@@ -98,7 +98,7 @@ export function ClusterWidget({ data }: Props<Cluster>) {
         ))}
       </ul>
       {data.problems.length === 0 ? (
-        <Empty>Aucun pod en difficulté.</Empty>
+        <Empty plain>Aucun pod en difficulté.</Empty>
       ) : (
         <More items={data.problems} limit={5}>
           {(shown) => (
@@ -181,7 +181,7 @@ type Events = { events: { reason: string; message: string; object: string; names
 
 export function EventsWidget({ data }: Props<Events>) {
   const detail = useDetail();
-  if (data.events.length === 0) return <Empty>Aucun avertissement récent dans le cluster.</Empty>;
+  if (data.events.length === 0) return <Empty tone="clear">Aucun avertissement récent dans le cluster.</Empty>;
   return (
     <ul className="rows">
       {data.events.map((e, i) => (
@@ -394,7 +394,7 @@ export function AlertsWidget({ data }: Props<Alerts>) {
         sections: [{ title: 'Description', empty: 'Cette alerte n’a pas de description.', rows: [a.summary, a.description].filter((t): t is string => Boolean(t)).map((t) => ({ title: t })) }],
       }),
     });
-  if (data.alerts.length === 0) return <Empty>Aucune alerte active.</Empty>;
+  if (data.alerts.length === 0) return <Empty tone="clear">Aucune alerte active.</Empty>;
   return (
     <More items={data.alerts} limit={6}>
       {(shown) => (
@@ -562,7 +562,7 @@ const activityIcons = { deploy: Rocket, alert: Bell, backup: DatabaseBackup, res
 const activityNames = { deploy: 'Déploiement', alert: 'Alerte', backup: 'Sauvegarde', restart: 'Redémarrage' };
 
 export function ActivityWidget({ data }: Props<Activity>) {
-  if (data.items.length === 0) return <Empty>Rien à signaler sur la période : ni déploiement, ni alerte, ni redémarrage.</Empty>;
+  if (data.items.length === 0) return <Empty tone="clear">Rien à signaler sur la période : ni déploiement, ni alerte, ni redémarrage.</Empty>;
   return (
     <ol className="timeline">
       {data.items.map((it, i) => {
@@ -663,7 +663,7 @@ export function ReleasesWidget({ data }: Props<Releases>) {
 type Pulls = { total: number; url: string; pulls: { number: number; title: string; author: string; url: string; created: string; draft: boolean; labels: string[] }[] };
 
 export function PullsWidget({ data }: Props<Pulls>) {
-  if (data.pulls.length === 0) return <Empty>Aucune pull request ouverte.</Empty>;
+  if (data.pulls.length === 0) return <Empty tone="clear">Aucune pull request ouverte.</Empty>;
   return (
     <>
       <ul className="rows">
@@ -735,7 +735,7 @@ export function IncidentsWidget({ data, widgetId }: Props<Incidents>) {
         </div>
       </dl>
       {data.open.length + data.recent.length === 0 ? (
-        <Empty>Aucun incident relevé. Le journal se remplit tout seul quand un indicateur du bandeau se dégrade.</Empty>
+        <Empty tone="clear">Aucun incident relevé. Le journal se remplit tout seul quand un indicateur du bandeau se dégrade.</Empty>
       ) : (
         <ul className="rows">
           {data.open.map(row)}
@@ -1021,7 +1021,7 @@ export function DigestWidget({ data }: Props<Digest>) {
 type Drift = { applications: number; branch: string; items: { kind: string; name: string; detail: string; state: State }[] };
 
 export function DriftWidget({ data, options }: Props<Drift>) {
-  if (data.items.length === 0) return <Empty>Rien ne vit hors de Git : les {data.applications} Applications suivent « {data.branch} » et chaque workload est géré par Argo CD.</Empty>;
+  if (data.items.length === 0) return <Empty tone="clear">Rien ne vit hors de Git : les {data.applications} Applications suivent « {data.branch} » et chaque workload est géré par Argo CD.</Empty>;
   return (
     <More items={data.items} limit={Number(options.limit) || 8}>
       {(shown) => (

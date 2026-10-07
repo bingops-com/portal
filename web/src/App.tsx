@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Command as CommandIcon, Download, LogOut, Monitor, Sunrise, X as Close, Moon, PencilLine, Plus, RotateCcw, Sun, Trash2 } from 'lucide-react';
+import { BookOpen, Boxes, Command as CommandIcon, Download, Gamepad2, Gauge, History, House, Lock, LogOut, Monitor, Newspaper, Server, ShieldCheck, Sunrise, User, Wallet, Wrench, X as Close, type LucideIcon, Moon, PencilLine, Plus, RotateCcw, Sun, Trash2 } from 'lucide-react';
 import { stringify } from 'yaml';
 import { api, type Page, type PortalConfig, type SummaryItem, type Widget } from './api';
 import { ExpandedContext, Mark } from './components/bits';
@@ -8,7 +8,7 @@ import { FocusContext, WidgetView } from './components/WidgetFrame';
 import { DetailDrawer, DetailProvider, type DetailData, type DetailRequest } from './components/Detail';
 import { PageEditor, PageView } from './components/PageView';
 import { Palette, type Command } from './components/Palette';
-import { ago } from './format';
+import { ago, clockTime } from './format';
 
 type Theme = 'auto' | 'light' | 'dark' | 'sun';
 
@@ -67,10 +67,11 @@ const slugFromPath = () => decodeURIComponent(window.location.pathname.replace(/
 
 // `beat` increases with every successful relevé; `alive` turns false when the
 // server stops answering, so stale readouts are never mistaken for fresh ones.
-function useSummary(enabled: boolean): { items: SummaryItem[]; beat: number; alive: boolean } {
+function useSummary(enabled: boolean): { items: SummaryItem[]; beat: number; alive: boolean; at: Date | null } {
   const [items, setItems] = useState<SummaryItem[]>([]);
   const [beat, setBeat] = useState(0);
   const [alive, setAlive] = useState(true);
+  const [at, setAt] = useState<Date | null>(null);
   useEffect(() => {
     if (!enabled) return;
     const ctl = new AbortController();
@@ -82,6 +83,7 @@ function useSummary(enabled: boolean): { items: SummaryItem[]; beat: number; ali
           setItems(r.items);
           setBeat((b) => b + 1);
           setAlive(true);
+          setAt(new Date());
         })
         .catch((err: Error) => {
           if (err.name !== 'AbortError') setAlive(false);
@@ -94,7 +96,7 @@ function useSummary(enabled: boolean): { items: SummaryItem[]; beat: number; ali
       clearInterval(timer);
     };
   }, [enabled]);
-  return { items, beat, alive };
+  return { items, beat, alive, at };
 }
 
 const rank = { ok: 0, unknown: 1, warn: 2, down: 3 } as const;
@@ -148,6 +150,23 @@ function kioskSeconds(): number {
 }
 
 const themeLabels: Record<Theme, string> = { auto: 'Thème : système', light: 'Thème : clair', dark: 'Thème : sombre', sun: 'Thème : selon le soleil' };
+// Pictograms a page can carry on its tab (`icon` in the configuration).
+export const pageIcons: Record<string, [LucideIcon, string]> = {
+  home: [House, 'Accueil'], boxes: [Boxes, 'Cluster'], shield: [ShieldCheck, 'Bouclier'], history: [History, 'Historique'], newspaper: [Newspaper, 'Journal'],
+  user: [User, 'Personne'], gauge: [Gauge, 'Jauge'], server: [Server, 'Serveur'], lock: [Lock, 'Cadenas'], wrench: [Wrench, 'Outil'],
+  gamepad: [Gamepad2, 'Manette'], wallet: [Wallet, 'Portefeuille'], book: [BookOpen, 'Livre'],
+};
+
+function Logo() {
+  return (
+    <svg className="logo" viewBox="0 0 64 64" aria-hidden>
+      <rect width="64" height="64" rx="16" className="logo-tile" />
+      <path d="M20 16v26a6 6 0 0 0 6 6h12" className="logo-trace" />
+      <circle cx="46" cy="48" r="5.5" className="logo-node" />
+    </svg>
+  );
+}
+
 const accents: [string, string][] = [['', 'Cobalt'], ['indigo', 'Indigo'], ['azur', 'Azur'], ['sarcelle', 'Sarcelle']];
 
 // Swaps state with a view transition where the browser has them: pages slide
@@ -187,7 +206,19 @@ export function App() {
   const [notice, setNotice] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [theme, cycleTheme] = useTheme(config?.theme);
-  const { items: summary, beat, alive } = useSummary(config !== null);
+  const { items: summary, beat, alive, at: readAt } = useSummary(config !== null);
+  const [version, setVersion] = useState('');
+  useEffect(() => {
+    fetch('/version.txt')
+      .then((r) => (r.ok && (r.headers.get('content-type') ?? '').startsWith('text/plain') ? r.text() : ''))
+      .then((t) => setVersion(t.trim().slice(0, 40)))
+      .catch(() => {});
+  }, []);
+  const [density, setDensity] = useState(() => store.get('portal-density') ?? '');
+  useEffect(() => {
+    if (density) document.documentElement.dataset.density = density;
+    else delete document.documentElement.dataset.density;
+  }, [density]);
   const changed = useChanged(summary);
   const [focused, setFocused] = useState<Widget | null>(null);
   const [present, setPresent] = useState(() => {
@@ -377,7 +408,7 @@ export function App() {
   };
 
   const exportYaml = () => {
-    const doc = { title: config!.title, theme: config!.theme || 'auto', pages: pages.map(({ name, slug: s, group, columns }) => ({ name, ...(s ? { slug: s } : {}), ...(group ? { group } : {}), columns })) };
+    const doc = { title: config!.title, theme: config!.theme || 'auto', pages: pages.map(({ name, slug: s, group, icon, columns }) => ({ name, ...(s ? { slug: s } : {}), ...(icon ? { icon } : {}), ...(group ? { group } : {}), columns })) };
     const blob = new Blob([stringify(doc, { lineWidth: 0 })], { type: 'application/yaml' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -505,6 +536,15 @@ export function App() {
         setAccent(nextAccent[0]);
       },
     });
+    list.push({
+      label: density === 'compact' ? 'Affichage aéré' : 'Affichage compact',
+      hint: 'Action',
+      run: () => {
+        const next = density === 'compact' ? '' : 'compact';
+        store.set('portal-density', next || null);
+        setDensity(next);
+      },
+    });
     list.push(
       present
         ? { label: 'Quitter le mode présentation', hint: 'Action', run: () => leavePresent() }
@@ -537,7 +577,7 @@ export function App() {
     if (config.user) list.push({ label: 'Se déconnecter', hint: 'Action', run: () => window.location.assign('/auth/logout') });
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, pages, draft, theme, index, kiosk, notify, found, accent, sound, present]);
+  }, [config, pages, draft, theme, index, kiosk, notify, found, accent, sound, present, density]);
 
   // The worst readout among the widgets of a page, shown on its tab so that
   // trouble filed on another page is not missed.
@@ -573,15 +613,18 @@ export function App() {
       <header className="band" data-state={worst}>
         <div className="band-top">
           <a className="wordmark" href="/" onClick={(e) => { e.preventDefault(); go(0); }}>
+            <Logo />
             {config.title}
           </a>
           <nav aria-label="Pages">
             {pages.map((p, i) => {
               const state = pageState(p);
+              const TabIcon = p.icon ? pageIcons[p.icon]?.[0] : undefined;
               return (
                 <span key={i} className="nav-item">
                   {i > 0 && (p.group ?? '') !== (pages[i - 1].group ?? '') && <span className="nav-sep" aria-hidden />}
                   <a href={i === 0 ? '/' : `/${p.slug}`} aria-current={i === index ? 'page' : undefined} onClick={(e) => { e.preventDefault(); go(i); }}>
+                    {TabIcon && <TabIcon size={15} aria-hidden />}
                     {p.name}
                     {state && i !== index && <i className={`nav-dot nav-dot-${state}`} role="img" aria-label={state === 'down' ? 'contient un indicateur en panne' : 'contient un indicateur à surveiller'} />}
                   </a>
@@ -645,6 +688,17 @@ export function App() {
           <label className="editbar-name">
             <span>Nom de la page</span>
             <input value={page.name} onChange={(e) => updatePage({ ...page, name: e.target.value, slug: '' })} />
+          </label>
+          <label className="editbar-name">
+            <span>Pictogramme</span>
+            <select value={page.icon ?? ''} onChange={(e) => updatePage({ ...page, icon: e.target.value || undefined })}>
+              <option value="">Aucun</option>
+              {Object.entries(pageIcons).map(([key, [, label]]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="editbar-name editbar-group">
             <span>Groupe (sépare les onglets)</span>
@@ -727,6 +781,13 @@ export function App() {
           </FocusContext.Provider>
         </DetailProvider>
       </main>
+
+      <footer className="foot">
+        <span>
+          {config.title} Portal{version ? `, version ${version}` : ''}
+        </span>
+        <span>{!alive ? 'Contact perdu avec le serveur' : readAt ? `Dernier relevé à ${clockTime(readAt)}` : ''}</span>
+      </footer>
     </>
   );
 }

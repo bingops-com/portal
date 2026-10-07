@@ -40,7 +40,7 @@ func newServer(t *testing.T, readOnly bool) http.Handler {
 		Store:    config.NewStore(path, filepath.Join(dir, "data"), providers.Known),
 		Deps:     &providers.Deps{Kube: providers.NewKubeClients()},
 		Cache:    cache.New(),
-		Assets:   fstest.MapFS{"index.html": {Data: []byte("<html>app</html>")}, "assets/app.js": {Data: []byte("js")}},
+		Assets:   fstest.MapFS{"index.html": {Data: []byte("<html>app</html>")}, "assets/app.js": {Data: []byte("js")}, "manifest.webmanifest": {Data: []byte("{}")}},
 		ReadOnly: readOnly,
 	}).Handler()
 }
@@ -139,6 +139,9 @@ func TestStaticFallsBackToIndexForPageRoutes(t *testing.T) {
 	rec := do(h, "GET", "/assets/app.js", "", nil)
 	if rec.Body.String() != "js" || !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
 		t.Errorf("asset: %q %q", rec.Body, rec.Header().Get("Cache-Control"))
+	}
+	if rec := do(h, "GET", "/manifest.webmanifest", "", nil); rec.Header().Get("Content-Type") != "application/manifest+json" {
+		t.Errorf("manifest content type = %q", rec.Header().Get("Content-Type"))
 	}
 	if rec := do(h, "GET", "/healthz", "", nil); rec.Code != http.StatusOK {
 		t.Errorf("healthz: %d", rec.Code)

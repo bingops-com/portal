@@ -25,6 +25,8 @@ type Config struct {
 type Page struct {
 	Name string `yaml:"name" json:"name"`
 	Slug string `yaml:"slug,omitempty" json:"slug"`
+	// Icon names the pictogram shown on the page's tab.
+	Icon string `yaml:"icon,omitempty" json:"icon,omitempty"`
 	// Group gathers pages under one caption in the navigation.
 	Group   string   `yaml:"group,omitempty" json:"group,omitempty"`
 	Columns []Column `yaml:"columns" json:"columns"`

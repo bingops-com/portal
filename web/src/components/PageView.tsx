@@ -9,7 +9,7 @@ import { registry } from '../widgets/registry';
 import { AddWidgetDialog, EditWidgetDialog } from './Dialogs';
 import { WidgetView } from './WidgetFrame';
 
-const template = (columns: Column[]) => columns.map((c) => (c.size === 'small' ? 'minmax(0, 21rem)' : 'minmax(0, 1fr)')).join(' ');
+const template = (columns: Column[]) => columns.map((c) => (c.size === 'small' ? 'minmax(0, var(--narrow))' : 'minmax(0, 1fr)')).join(' ');
 
 // A `section` widget titles the widgets that follow it in its column, up to
 // the next section, and lets the person fold them away.
