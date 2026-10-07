@@ -1775,16 +1775,17 @@ a.more {
   overflow: visible;
   stroke: var(--spark);
 }
-.spark polyline {
-  stroke-dasharray: 1;
-  animation: draw 1s ease-out both;
+/* Revealed left to right. A dash-based draw is unreliable here: with a
+   non-scaling stroke the dash is measured on screen and cuts the line short. */
+.spark svg {
+  animation: draw 1s ease-out backwards;
 }
 @keyframes draw {
   from {
-    stroke-dashoffset: 1;
+    clip-path: inset(-4px 100% -4px 0);
   }
   to {
-    stroke-dashoffset: 0;
+    clip-path: inset(-4px -4px -4px 0);
   }
 }
 .spark-dot {
@@ -1849,8 +1850,17 @@ a.more {
   color: var(--ink-soft);
   margin-left: 1px;
 }
+/* The trend sits right beside its figure and takes the room that is left,
+   instead of being pushed to the far edge of the tile. */
 .stat {
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
+  column-gap: 0.85rem;
+}
+.stat .spark {
+  width: 100%;
+  max-width: 9rem;
+  height: 2.25rem;
 }
 
 /* --- Values blink in the direction of their change ----------------------- */
@@ -2324,7 +2334,7 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spark polyline,
+  .spark svg,
   .spark-dot,
   .band,
   .beat,

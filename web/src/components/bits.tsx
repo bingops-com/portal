@@ -26,7 +26,7 @@ export function Sparkline({ values, className }: { values?: number[]; className?
   return (
     <span className={`spark ${className ?? ''}`} aria-hidden>
       <svg viewBox="0 0 100 28" preserveAspectRatio="none">
-        <polyline points={points.join(' ')} pathLength={1} fill="none" strokeWidth="1.75" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={points.join(' ')} fill="none" strokeWidth="1.75" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
       </svg>
       <i className="spark-dot" style={{ top: `${(y(values[values.length - 1]) / 28) * 100}%` }} />
     </span>
