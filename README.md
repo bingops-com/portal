@@ -76,6 +76,11 @@ une adresse iCal privée (`PORTAL_VAR_ICAL_URL`).
 | `events` | API Kubernetes (avertissements) | `namespaces`, `limit`, `context` |
 | `argocd` | Applications Argo CD via l'API Kubernetes | `url` (liens), `namespace`, `ignore`, `context` |
 | `activity` | Fil des déploiements, alertes, sauvegardes et redémarrages | `url` (Prometheus, facultatif), `cronjobs`, `hours`, `limit`, `context` |
+| `digest` | Résumé des 24 heures (incidents, activité, alertes) | `url`, `cronjobs`, `context` |
+| `top` | Pods les plus gourmands et proches de leur limite (Prometheus, cAdvisor) | `url`, `limit` |
+| `postgres` | Santé des clusters CloudNativePG ; taille et connexions si leurs métriques sont collectées | `url`, `context` |
+| `drift` | Applications détachées de la branche, namespaces et workloads hors Argo CD | `branch`, `ignore`, `context` |
+| `status` | Pages de statut des fournisseurs (format Statuspage) | `services: [{title, url}]` |
 | `topology` | Carte du lab : états tirés des Applications Argo CD et des endpoints Gatus | `nodes: [{id, label, layer, app, endpoint, note}]`, `links: [{from, to}]`, `gatus`, `context` |
 | `incidents` | Journal tenu par le serveur d'après le bandeau | `days`, `limit` |
 | `deadlines` | Certificats, échéances saisies, fins de support (endoflife.date) | `items: [{title, date, note}]`, `eol: [{product, cycle, title}]`, `certificates`, `warnDays` |

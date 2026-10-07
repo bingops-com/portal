@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -877,5 +878,119 @@ func TestTopologyStatesFollowApplicationsAndEndpoints(t *testing.T) {
 	links := res["links"].([]topoLink)
 	if len(links) != 2 || links[0].State != "ok" || links[1].State != "down" {
 		t.Errorf("links = %+v", links)
+	}
+}
+
+func TestStatusPagesGradeAndSort(t *testing.T) {
+	page := func(indicator, description string) map[string]string {
+		return map[string]string{
+			"/api/v2/status.json":               `{"page":{"name":"Auto"},"status":{"indicator":"` + indicator + `","description":"` + description + `"}}`,
+			"/api/v2/incidents/unresolved.json": `{"incidents":[]}`,
+		}
+	}
+	fine, broken := serve(t, page("none", "All Systems Operational")), serve(t, page("major", "Partial outage"))
+	out, err := fetchStatus(context.Background(), nil, map[string]any{"services": []any{
+		map[string]any{"title": "Fine", "url": fine}, broken, map[string]any{"title": "Gone", "url": serve(t, nil)},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := out.(map[string]any)
+	rows := res["services"].([]upstream)
+	if rows[0].State != "down" || rows[0].Name != "Auto" || rows[1].State != "unknown" || rows[2].Name != "Fine" || res["healthy"] != 1 {
+		t.Fatalf("%+v", rows)
+	}
+}
+
+func TestDriftFindsStrayBranchesNamespacesAndWorkloads(t *testing.T) {
+	app := func(name, rev, chart, ns string) *unstructured.Unstructured {
+		source := map[string]any{"repoURL": "https://github.com/org/lab.git", "targetRevision": rev}
+		if chart != "" {
+			source = map[string]any{"repoURL": "https://charts.example", "chart": chart, "targetRevision": rev}
+		}
+		return custom(argoApps, "Application", "argocd", name, time.Now(), map[string]any{
+			"spec": map[string]any{"source": source, "destination": map[string]any{"namespace": ns}},
+		})
+	}
+	ns := func(name string) *corev1.Namespace {
+		return &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	}
+	dep := func(namespace, name string, labels map[string]string, owned bool) *appsv1.Deployment {
+		d := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name, Labels: labels}}
+		if owned {
+			d.OwnerReferences = []metav1.OwnerReference{{Kind: "Operator", Name: "x"}}
+		}
+		return d
+	}
+	deps := platformDeps(
+		[]runtime.Object{
+			ns("web"), ns("db"), ns("orphan"), ns("kube-system"), ns("scratch"),
+			dep("web", "tracked", map[string]string{"argocd.argoproj.io/instance": "web"}, false),
+			dep("web", "by-hand", nil, false),
+			dep("web", "operator-made", nil, true),
+			dep("orphan", "lonely", nil, false),
+		},
+		app("web", "master", "", "web"), app("db", "feat/test", "", "db"), app("chart", "1.2.3", "nginx", "web"),
+	)
+	out, err := fetchDrift(context.Background(), deps, map[string]any{"branch": "master", "ignore": []any{"scratch"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, it := range out.(map[string]any)["items"].([]driftItem) {
+		got = append(got, it.Kind+":"+it.Name)
+	}
+	sort.Strings(got)
+	want := "Application:db,Deployment:web/by-hand,Namespace:orphan"
+	if strings.Join(got, ",") != want {
+		t.Errorf("got %v, want %s", got, want)
+	}
+}
+
+func TestDigestSummarisesIncidentsAndActivity(t *testing.T) {
+	saved := Incidents
+	t.Cleanup(func() { Incidents = saved })
+	Incidents = &IncidentLog{}
+	now := time.Now()
+	closed := now.Add(-2 * time.Hour)
+	Incidents.items = []Incident{
+		{ID: 1, Label: "Sauvegardes", State: "down", Opened: now.Add(-3 * time.Hour), Closed: &closed},
+		{ID: 2, Label: "Alertes", State: "warn", Opened: now.Add(-30 * time.Minute)},
+		{ID: 3, Label: "Ancien", State: "down", Opened: now.Add(-72 * time.Hour), Closed: func() *time.Time { t := now.Add(-70 * time.Hour); return &t }()},
+	}
+	app := custom(argoApps, "Application", "argocd", "web", now, map[string]any{
+		"status": map[string]any{"history": []any{map[string]any{"deployedAt": now.Add(-time.Hour).UTC().Format(time.RFC3339), "revision": "abc"}}},
+	})
+	out, err := fetchDigest(context.Background(), platformDeps(nil, app), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := out.(map[string]any)["lines"].([]map[string]string)
+	if lines[0]["state"] != "warn" || !strings.Contains(lines[0]["text"], "2 incidents") || !strings.Contains(lines[0]["text"], "Alertes") || strings.Contains(lines[0]["text"], "Ancien") {
+		t.Errorf("incidents line = %v", lines[0])
+	}
+	if !strings.Contains(lines[1]["text"], "1 déploiement") {
+		t.Errorf("activity line = %v", lines[1])
+	}
+}
+
+func TestTopConsumersRequiresData(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Query().Get("query"), "cpu_usage") {
+			w.Write([]byte(`{"data":{"result":[{"metric":{"namespace":"a","pod":"small"},"value":[1,"0.1"]},{"metric":{"namespace":"a","pod":"big"},"value":[1,"0.9"]}]}}`))
+			return
+		}
+		w.Write([]byte(`{"data":{"result":[]}}`))
+	}))
+	t.Cleanup(srv.Close)
+	out, err := fetchTop(context.Background(), nil, map[string]any{"url": srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cpu := out.(map[string]any)["cpu"].([]consumer); len(cpu) != 2 || cpu[0].Pod != "big" {
+		t.Errorf("%+v", cpu)
+	}
+	if _, err := fetchTop(context.Background(), nil, map[string]any{"url": serve(t, map[string]string{"/api/v1/query": `{"data":{"result":[]}}`})}); err == nil {
+		t.Error("no container metrics at all must be an error")
 	}
 }

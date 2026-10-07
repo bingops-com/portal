@@ -2351,3 +2351,83 @@ body,
     animation: none !important;
   }
 }
+
+/* --- Diagnostic widgets --------------------------------------------------- */
+
+.top-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.25rem 1.75rem;
+}
+.top-grid .group + .group {
+  margin-top: 0;
+}
+.bars li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.1rem 0.75rem;
+  padding: 0.4rem 0;
+}
+.bar-name {
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar-value {
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+.bar-track {
+  grid-column: 1 / -1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--tint);
+  overflow: hidden;
+}
+.bar-track i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--cobalt);
+  transition: width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pairs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.6rem 1rem;
+  padding: 0.25rem 0 0.4rem 1.825rem;
+}
+.pairs dt {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.pairs dd {
+  font-weight: 550;
+}
+.digest {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.3rem 0 0.1rem;
+}
+.digest li {
+  padding-left: 0.9rem;
+  border-left: 3px solid var(--line);
+  font-size: 1.0625rem;
+  line-height: 1.4;
+}
+.digest-ok {
+  border-left-color: var(--ok) !important;
+}
+.digest-warn {
+  border-left-color: var(--warn) !important;
+}
+.digest-down {
+  border-left-color: var(--down) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar-track i {
+    transition: none;
+  }
+}

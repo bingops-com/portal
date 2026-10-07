@@ -877,3 +877,169 @@ export function TopologyWidget({ data }: Props<Topology>) {
     </div>
   );
 }
+
+// --- Top consumers ---
+
+type Consumer = { namespace: string; pod: string; container?: string; value: number };
+type Top = { cpu: Consumer[]; memory: Consumer[]; tight: Consumer[] | null };
+
+function Bars({ title, items, format, max }: { title: string; items: Consumer[]; format: (v: number) => string; max?: number }) {
+  const flip = useFlip<HTMLUListElement>();
+  const top = max ?? Math.max(...items.map((i) => i.value), 0.0001);
+  return (
+    <div className="group">
+      <h3>{title}</h3>
+      <ul className="bars" ref={flip}>
+        {items.map((c) => (
+          <li key={`${c.namespace}/${c.pod}/${c.container ?? ''}`} data-flip={`${c.namespace}/${c.pod}/${c.container ?? ''}`}>
+            <span className="bar-name" title={`${c.namespace}/${c.pod}`}>
+              {c.pod}
+            </span>
+            <span className="bar-value">{format(c.value)}</span>
+            <span className="bar-track" aria-hidden>
+              <i style={{ width: `${Math.min(100, (c.value / top) * 100)}%` }} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function TopWidget({ data }: Props<Top>) {
+  const cores = (v: number) => (v < 1 ? `${Math.round(v * 1000)} m` : `${v.toFixed(2).replace('.', ',')} cœurs`);
+  return (
+    <div className="top-grid">
+      <Bars title="Processeur" items={data.cpu} format={cores} />
+      <Bars title="Mémoire" items={data.memory} format={(v) => formatStat(v, 'bytes')} />
+      {data.tight && data.tight.length > 0 && <Bars title="Proches de leur limite mémoire" items={data.tight} format={(v) => formatStat(v * 100, 'percent')} max={1} />}
+    </div>
+  );
+}
+
+// --- PostgreSQL ---
+
+type Postgres = {
+  metrics: boolean;
+  clusters: { namespace: string; name: string; phase: string; ready: number; instances: number; primary: string; archiving: State | 'unknown'; storage?: string; size?: number; connections?: number; walAge?: number; lastBackup?: string; state: State }[];
+};
+
+export function PostgresWidget({ data }: Props<Postgres>) {
+  return (
+    <>
+      {data.clusters.map((c) => (
+        <div key={`${c.namespace}/${c.name}`} className="group">
+          <div className="row">
+            <Mark state={c.state} />
+            <div className="row-main">
+              <span className="row-title">{c.name}</span>
+              <span className="row-sub">
+                {c.namespace}, {c.phase || 'état inconnu'}
+              </span>
+            </div>
+            <span className="row-aside">
+              {c.ready}/{c.instances}
+              <small>instances</small>
+            </span>
+          </div>
+          <dl className="pairs">
+            <div>
+              <dt>Archivage continu</dt>
+              <dd className={c.archiving === 'down' ? 'down' : undefined}>{c.archiving === 'ok' ? 'actif' : c.archiving === 'down' ? 'en échec' : 'inconnu'}</dd>
+            </div>
+            <div>
+              <dt>Dernière sauvegarde</dt>
+              <dd>{c.lastBackup ? ago(c.lastBackup) : 'aucune'}</dd>
+            </div>
+            <div>
+              <dt>Taille</dt>
+              <dd>{c.size !== undefined ? `${formatStat(c.size, 'bytes')}${c.storage ? ` sur ${c.storage}` : ''}` : c.storage ? `volume de ${c.storage}` : 'n/d'}</dd>
+            </div>
+            {c.connections !== undefined && (
+              <div>
+                <dt>Connexions</dt>
+                <dd>{Math.round(c.connections)}</dd>
+              </div>
+            )}
+            {c.walAge !== undefined && (
+              <div>
+                <dt>Dernier journal archivé</dt>
+                <dd>il y a {formatStat(c.walAge, 'duration')}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
+      ))}
+      {!data.metrics && <p className="note">Taille et connexions apparaîtront quand Prometheus collectera les métriques CloudNativePG.</p>}
+    </>
+  );
+}
+
+// --- Third-party status ---
+
+type Upstream = { healthy: number; services: { name: string; state: State; detail: string; url: string; incidents: number }[] };
+
+export function StatusWidget({ data }: Props<Upstream>) {
+  const flip = useFlip<HTMLUListElement>();
+  return (
+    <ul className="rows" ref={flip}>
+      {data.services.map((s) => (
+        <li key={s.url} data-flip={s.url} className="row">
+          <Mark state={s.state} />
+          <div className="row-main">
+            <a className="row-title" {...ext(s.url)}>
+              {s.name || s.url}
+            </a>
+            <span className="row-sub">{s.detail}</span>
+          </div>
+          {s.incidents > 0 && <span className="tag tag-warn">{s.incidents > 1 ? `${s.incidents} incidents` : '1 incident'}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+export const statusBadge = (d: Upstream) => `${d.healthy}/${d.services.length} nominaux`;
+
+// --- Daily digest ---
+
+type Digest = { generated: string; lines: { state: State; text: string }[] };
+
+export function DigestWidget({ data }: Props<Digest>) {
+  return (
+    <ul className="digest">
+      {data.lines.map((l, i) => (
+        <li key={i} className={`digest-${l.state}`}>
+          {l.text}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// --- Configuration drift ---
+
+type Drift = { applications: number; branch: string; items: { kind: string; name: string; detail: string; state: State }[] };
+
+export function DriftWidget({ data, options }: Props<Drift>) {
+  if (data.items.length === 0) return <Empty>Rien ne vit hors de Git : les {data.applications} Applications suivent « {data.branch} » et chaque workload est géré par Argo CD.</Empty>;
+  return (
+    <More items={data.items} limit={Number(options.limit) || 8}>
+      {(shown) => (
+        <ul className="rows">
+          {shown.map((d) => (
+            <li key={d.kind + d.name} className="row">
+              <Mark state={d.state} label={d.state === 'down' ? 'À corriger' : 'À vérifier'} />
+              <div className="row-main">
+                <span className="row-title wrap">{d.name}</span>
+                <span className="row-text">
+                  {d.kind}, {d.detail}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </More>
+  );
+}
+export const driftBadge = (d: Drift) => (d.items.length > 1 ? `${d.items.length} écarts` : d.items.length === 1 ? '1 écart' : 'aucun écart');

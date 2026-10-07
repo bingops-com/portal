@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Options } from '../api';
-import { ActivityWidget, AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, DeadlinesWidget, EventsWidget, ForecastWidget, GameServerWidget, GatusWidget, IncidentsWidget, PrometheusWidget, PullsWidget, ReleasesWidget, TopologyWidget, VersionsWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, gameServerBadge, gatusBadge, incidentsBadge, pullsBadge, versionsBadge, workloadsBadge } from './ops';
+import { ActivityWidget, AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, DeadlinesWidget, DigestWidget, DriftWidget, EventsWidget, ForecastWidget, GameServerWidget, GatusWidget, IncidentsWidget, PostgresWidget, PrometheusWidget, PullsWidget, ReleasesWidget, StatusWidget, TopWidget, TopologyWidget, VersionsWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, driftBadge, gameServerBadge, gatusBadge, incidentsBadge, pullsBadge, statusBadge, versionsBadge, workloadsBadge } from './ops';
 import { CalendarWidget, ClockWidget, MarketsWidget, PostsWidget, RssWidget, SearchWidget, VideosWidget, WeatherWidget, weatherBadge } from './info';
 
 export type Field = {
@@ -122,6 +122,58 @@ const list: WidgetMeta[] = [
       context,
     ],
     component: ActivityWidget,
+  },
+  {
+    type: 'digest', label: 'Résumé des 24 heures', group: 'Ops', refresh: 300,
+    description: 'Quelques phrases sur la journée écoulée : incidents, déploiements, sauvegardes, alertes.',
+    defaults: { url: '', cronjobs: [] },
+    fields: [
+      { key: 'url', label: 'Adresse de Prometheus', kind: 'text', help: 'Facultatif : compte aussi les alertes actives.' },
+      { key: 'cronjobs', label: 'CronJobs de sauvegarde', kind: 'lines', help: 'Un par ligne, au format namespace/nom.' },
+      context,
+    ],
+    component: DigestWidget,
+  },
+  {
+    type: 'top', label: 'Top consommateurs', group: 'Ops', refresh: 30,
+    description: 'Les pods qui consomment le plus de processeur et de mémoire, et ceux qui approchent de leur limite.',
+    defaults: { url: '', limit: 5 },
+    fields: [promUrl, limit('Nombre de pods par classement.')],
+    component: TopWidget,
+  },
+  {
+    type: 'postgres', label: 'PostgreSQL', group: 'Ops', refresh: 60,
+    description: 'Santé des bases CloudNativePG : instances, archivage, dernière sauvegarde, taille et connexions.',
+    defaults: { url: '' },
+    fields: [{ key: 'url', label: 'Adresse de Prometheus', kind: 'text', help: 'Facultatif : ajoute la taille et les connexions si les métriques CloudNativePG sont collectées.' }, context],
+    component: PostgresWidget,
+  },
+  {
+    type: 'drift', label: 'Dérive de configuration', group: 'Ops', refresh: 120,
+    description: 'Ce qui vit dans le cluster hors de Git : Applications détachées de la branche, namespaces et workloads non gérés.',
+    defaults: { branch: 'master', ignore: [] },
+    fields: [
+      { key: 'branch', label: 'Branche de référence', kind: 'text', placeholder: 'master' },
+      { key: 'ignore', label: 'Namespaces à ignorer', kind: 'lines', help: 'Un par ligne, pour ceux gérés par un autre outil.' },
+      context,
+      limit(),
+    ],
+    component: DriftWidget, badge: driftBadge,
+  },
+  {
+    type: 'status', label: 'Services tiers', group: 'Informations', refresh: 300,
+    description: 'État annoncé par les pages de statut de vos fournisseurs (GitHub, Cloudflare, Tailscale…).',
+    defaults: { services: [{ title: 'GitHub', url: 'https://www.githubstatus.com' }, { title: 'Cloudflare', url: 'https://www.cloudflarestatus.com' }] },
+    fields: [
+      {
+        key: 'services', label: 'Pages de statut', kind: 'list', itemName: 'un service',
+        item: [
+          { key: 'title', label: 'Nom', kind: 'text' },
+          { key: 'url', label: 'Adresse de la page', kind: 'text', placeholder: 'https://www.githubstatus.com', help: 'Pages au format Statuspage.' },
+        ],
+      },
+    ],
+    component: StatusWidget, badge: statusBadge,
   },
   {
     type: 'topology', label: 'Carte du lab', group: 'Ops', refresh: 30,
