@@ -101,3 +101,37 @@ test('the phone layout does not scroll sideways', async ({ page }) => {
   await expect(page.locator('.widget').first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
+
+test('a section folds the widgets below it and remembers the choice', async ({ page }) => {
+  const layout = {
+    pages: [
+      {
+        name: 'Accueil',
+        group: 'Lab',
+        columns: [
+          {
+            size: 'full',
+            widgets: [
+              { id: 'top', type: 'clock', title: 'Avant' },
+              { id: 'sec', type: 'section', title: 'Outils' },
+              { id: 'in1', type: 'clock', title: 'Dedans' },
+              { id: 'in2', type: 'search' },
+            ],
+          },
+        ],
+      },
+      { name: 'Autre', group: 'Perso', columns: [{ size: 'full', widgets: [{ id: 'c', type: 'clock' }] }] },
+    ],
+  };
+  expect((await page.request.put('/api/layout', { data: layout })).ok()).toBeTruthy();
+  await page.goto('/');
+  await expect(page.locator('.nav-group')).toHaveText(['Lab', 'Perso']);
+  const toggle = page.getByRole('button', { name: 'Outils' });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('.widget h2')).toContainText(['Avant', 'Dedans']);
+  await toggle.click();
+  await expect(page.locator('.widget h2')).toHaveText(['Avant']);
+  await expect(page.locator('.section-count')).toHaveText('2 widgets');
+  await page.reload();
+  await expect(page.getByRole('button', { name: /Outils/ })).toHaveAttribute('aria-expanded', 'false');
+});

@@ -81,7 +81,7 @@ var Registry = map[string]Provider{
 }
 
 // ClientOnly lists widget types rendered entirely in the browser.
-var ClientOnly = map[string]bool{"clock": true, "search": true}
+var ClientOnly = map[string]bool{"clock": true, "search": true, "section": true}
 
 func Known(t string) bool {
 	_, ok := Registry[t]

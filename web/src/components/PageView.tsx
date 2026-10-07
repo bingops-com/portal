@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowLeft, ArrowRight, Plus, Trash2, Undo2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, Plus, Trash2, Undo2 } from 'lucide-react';
 import type { Column, Page, Widget } from '../api';
 import { newId } from '../format';
 import { registry } from '../widgets/registry';
@@ -11,16 +11,58 @@ import { WidgetView } from './WidgetFrame';
 
 const template = (columns: Column[]) => columns.map((c) => (c.size === 'small' ? 'minmax(0, 21rem)' : 'minmax(0, 1fr)')).join(' ');
 
+// A `section` widget titles the widgets that follow it in its column, up to
+// the next section, and lets the person fold them away.
+function Section({ section, widgets }: { section: Widget; widgets: Widget[] }) {
+  const key = `portal-section-${section.id}`;
+  const [open, setOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved) return saved === 'open';
+    } catch {
+      /* fall back to the configured default */
+    }
+    return !section.options?.collapsed;
+  });
+  const toggle = () => {
+    setOpen(!open);
+    try {
+      localStorage.setItem(key, open ? 'closed' : 'open');
+    } catch {
+      /* the choice lasts for this visit */
+    }
+  };
+  return (
+    <section className="section" aria-label={section.title || 'Section'}>
+      <h2 className="section-head">
+        <button onClick={toggle} aria-expanded={open}>
+          <ChevronDown size={16} aria-hidden className={open ? undefined : 'section-closed'} />
+          {section.title || 'Section'}
+          {!open && <span className="section-count">{widgets.length > 1 ? `${widgets.length} widgets` : widgets.length === 1 ? '1 widget' : 'vide'}</span>}
+        </button>
+      </h2>
+      {open && widgets.map((w) => <WidgetView key={w.id} widget={w} preview={false} />)}
+    </section>
+  );
+}
+
 export function PageView({ page }: { page: Page }) {
   return (
     <div className="columns" style={{ gridTemplateColumns: template(page.columns) }}>
-      {page.columns.map((col, i) => (
-        <div key={i} className={`column column-${col.size}`}>
-          {col.widgets.map((w) => (
-            <WidgetView key={w.id} widget={w} preview={false} />
-          ))}
-        </div>
-      ))}
+      {page.columns.map((col, i) => {
+        const groups: { section?: Widget; widgets: Widget[] }[] = [{ widgets: [] }];
+        for (const w of col.widgets) {
+          if (w.type === 'section') groups.push({ section: w, widgets: [] });
+          else groups[groups.length - 1].widgets.push(w);
+        }
+        return (
+          <div key={i} className={`column column-${col.size}`}>
+            {groups.map((g) =>
+              g.section ? <Section key={g.section.id} section={g.section} widgets={g.widgets} /> : g.widgets.map((w) => <WidgetView key={w.id} widget={w} preview={false} />),
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

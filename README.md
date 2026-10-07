@@ -53,6 +53,7 @@ courante pour la reporter dans Git, **Revenir au YAML** supprime `layout.json`.
 ```yaml
 pages:
   - name: Ops
+    group: Lab           # facultatif : regroupe des pages dans la navigation
     columns:
       - size: small        # small | full
         widgets:
@@ -62,6 +63,12 @@ pages:
             options:
               url: ${PORTAL_VAR_PROMETHEUS_URL}
 ```
+
+Pour qu'une page reste lisible en grossissant : un widget `section` titre les
+widgets placés dessous dans sa colonne, jusqu'à la section suivante, et permet
+de les replier (choix mémorisé par navigateur, `collapsed: true` pour replier
+par défaut). L'onglet d'une page porte une pastille quand l'un de ses widgets
+alimente un indicateur du bandeau à surveiller ou en panne.
 
 Les références `${PORTAL_VAR_*}` sont résolues côté serveur au moment de la
 requête et ne sont jamais envoyées au navigateur : c'est l'endroit où mettre

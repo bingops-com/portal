@@ -424,5 +424,13 @@ const list: WidgetMeta[] = [
   },
 ];
 
+list.push({
+  type: 'section', label: 'Section', group: 'Outils', refresh: 0,
+  description: 'Un titre qui regroupe les widgets placés dessous, jusqu’à la section suivante, et permet de les replier.',
+  defaults: { collapsed: false },
+  fields: [{ key: 'collapsed', label: 'Repliée par défaut', kind: 'bool' }],
+  component: () => null,
+});
+
 export const registry: Record<string, WidgetMeta> = Object.fromEntries(list.map((m) => [m.type, m]));
 export const catalog = list;

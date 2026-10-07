@@ -392,7 +392,7 @@ export function App() {
   };
 
   const exportYaml = () => {
-    const doc = { title: config!.title, theme: config!.theme || 'auto', pages: pages.map(({ name, slug: s, columns }) => ({ name, ...(s ? { slug: s } : {}), columns })) };
+    const doc = { title: config!.title, theme: config!.theme || 'auto', pages: pages.map(({ name, slug: s, group, columns }) => ({ name, ...(s ? { slug: s } : {}), ...(group ? { group } : {}), columns })) };
     const blob = new Blob([stringify(doc, { lineWidth: 0 })], { type: 'application/yaml' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -554,6 +554,19 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, pages, draft, theme, index, kiosk, notify, found, accent, sound, present]);
 
+  // The worst readout among the widgets of a page, shown on its tab so that
+  // trouble filed on another page is not missed.
+  const pageState = (p: Page): 'warn' | 'down' | null => {
+    const types = new Set(p.columns.flatMap((c) => c.widgets.map((w) => w.type)));
+    let worstHere: 'warn' | 'down' | null = null;
+    for (const s of summary) {
+      if (!s.type || !types.has(s.type)) continue;
+      if (s.state === 'down') return 'down';
+      if (s.state === 'warn') worstHere = 'warn';
+    }
+    return worstHere;
+  };
+
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : theme === 'sun' ? Sunrise : Monitor;
   const dirty = useMemo(() => draft !== null && JSON.stringify(draft) !== JSON.stringify(config?.pages), [draft, config]);
 
@@ -578,11 +591,18 @@ export function App() {
             {config.title}
           </a>
           <nav aria-label="Pages">
-            {pages.map((p, i) => (
-              <a key={i} href={i === 0 ? '/' : `/${p.slug}`} aria-current={i === index ? 'page' : undefined} onClick={(e) => { e.preventDefault(); go(i); }}>
-                {p.name}
-              </a>
-            ))}
+            {pages.map((p, i) => {
+              const state = pageState(p);
+              return (
+                <span key={i} className="nav-item">
+                  {p.group && p.group !== pages[i - 1]?.group && <span className="nav-group">{p.group}</span>}
+                  <a href={i === 0 ? '/' : `/${p.slug}`} aria-current={i === index ? 'page' : undefined} onClick={(e) => { e.preventDefault(); go(i); }}>
+                    {p.name}
+                    {state && i !== index && <i className={`nav-dot nav-dot-${state}`} role="img" aria-label={state === 'down' ? 'contient un indicateur en panne' : 'contient un indicateur à surveiller'} />}
+                  </a>
+                </span>
+              );
+            })}
           </nav>
           <span
             key={beat}
@@ -640,6 +660,10 @@ export function App() {
           <label className="editbar-name">
             <span>Nom de la page</span>
             <input value={page.name} onChange={(e) => updatePage({ ...page, name: e.target.value, slug: '' })} />
+          </label>
+          <label className="editbar-name editbar-group">
+            <span>Groupe dans la navigation</span>
+            <input value={page.group ?? ''} placeholder="Aucun" onChange={(e) => updatePage({ ...page, group: e.target.value || undefined })} />
           </label>
           <button className="btn" disabled={page.columns.length >= 4} onClick={() => updatePage({ ...page, columns: [...page.columns, { size: 'small', widgets: [] }] })}>
             <Plus size={15} aria-hidden /> Ajouter une colonne

@@ -23,8 +23,10 @@ type Config struct {
 }
 
 type Page struct {
-	Name    string   `yaml:"name" json:"name"`
-	Slug    string   `yaml:"slug,omitempty" json:"slug"`
+	Name string `yaml:"name" json:"name"`
+	Slug string `yaml:"slug,omitempty" json:"slug"`
+	// Group gathers pages under one caption in the navigation.
+	Group   string   `yaml:"group,omitempty" json:"group,omitempty"`
 	Columns []Column `yaml:"columns" json:"columns"`
 }
 
