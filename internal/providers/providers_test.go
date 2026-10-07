@@ -839,3 +839,43 @@ func TestForecastDaysUntilFull(t *testing.T) {
 		t.Errorf("%+v", rows[1])
 	}
 }
+
+func TestTopologyStatesFollowApplicationsAndEndpoints(t *testing.T) {
+	app := func(name, sync, health string) *unstructured.Unstructured {
+		return custom(argoApps, "Application", "argocd", name, time.Now(), map[string]any{
+			"status": map[string]any{"sync": map[string]any{"status": sync}, "health": map[string]any{"status": health}},
+		})
+	}
+	gatus := serve(t, map[string]string{"/api/v1/endpoints/statuses": `[{"name":"Site","results":[{"success":false}]}]`})
+	out, err := fetchTopology(context.Background(), platformDeps(nil, app("web", "Synced", "Healthy"), app("db", "Synced", "Degraded")), map[string]any{
+		"gatus": gatus,
+		"nodes": []any{
+			map[string]any{"id": "net", "label": "Internet", "layer": 0},
+			map[string]any{"id": "web", "layer": 1, "app": "web"},
+			map[string]any{"id": "db", "layer": 2, "app": "db"},
+			map[string]any{"id": "site", "layer": 1, "app": "web", "endpoint": "Site"},
+			map[string]any{"id": "ghost", "layer": 1, "app": "missing"},
+		},
+		"links": []any{
+			map[string]any{"from": "net", "to": "web"}, map[string]any{"from": "web", "to": "db"}, map[string]any{"from": "web", "to": "nowhere"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := out.(map[string]any)
+	states := map[string]string{}
+	for _, n := range res["nodes"].([]topoNode) {
+		states[n.ID] = n.State
+	}
+	want := map[string]string{"net": "none", "web": "ok", "db": "down", "site": "down", "ghost": "unknown"}
+	for id, state := range want {
+		if states[id] != state {
+			t.Errorf("%s = %q, want %q", id, states[id], state)
+		}
+	}
+	links := res["links"].([]topoLink)
+	if len(links) != 2 || links[0].State != "ok" || links[1].State != "down" {
+		t.Errorf("links = %+v", links)
+	}
+}

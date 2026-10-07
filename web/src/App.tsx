@@ -1,19 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Command as CommandIcon, Download, LogOut, Monitor, Moon, PencilLine, Plus, RotateCcw, Sun, Trash2 } from 'lucide-react';
+import { flushSync } from 'react-dom';
+import { Command as CommandIcon, Download, LogOut, Monitor, Sunrise, X as Close, Moon, PencilLine, Plus, RotateCcw, Sun, Trash2 } from 'lucide-react';
 import { stringify } from 'yaml';
-import { api, type Page, type PortalConfig, type SummaryItem } from './api';
-import { Mark } from './components/bits';
+import { api, type Page, type PortalConfig, type SummaryItem, type Widget } from './api';
+import { ExpandedContext, Mark } from './components/bits';
+import { FocusContext, WidgetView } from './components/WidgetFrame';
 import { DetailDrawer, DetailProvider, type DetailData, type DetailRequest } from './components/Detail';
 import { PageEditor, PageView } from './components/PageView';
 import { Palette, type Command } from './components/Palette';
 import { ago } from './format';
 
-type Theme = 'auto' | 'light' | 'dark';
+type Theme = 'auto' | 'light' | 'dark' | 'sun';
+
+// Rough sunrise and sunset for the viewer: longitude from the clock's UTC
+// offset, mid-latitude assumed. Good to a few tens of minutes, which is all
+// a theme switch needs.
+function isNight(now = new Date()): boolean {
+  const start = new Date(now.getFullYear(), 0, 0).getTime();
+  const day = Math.floor((now.getTime() - start) / 86_400_000);
+  const decl = -23.44 * Math.cos(((2 * Math.PI) / 365) * (day + 10));
+  const lat = 45;
+  const rad = Math.PI / 180;
+  const half = (Math.acos(-Math.tan(lat * rad) * Math.tan(decl * rad)) / rad / 15) * 60;
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const noon = 12 * 60 + (now.getTimezoneOffset() % 60);
+  return minutes < noon - half || minutes > noon + half;
+}
 
 function readTheme(fallback?: string): Theme {
   try {
     const stored = localStorage.getItem('portal-theme');
-    if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored;
+    if (stored === 'light' || stored === 'dark' || stored === 'auto' || stored === 'sun') return stored;
   } catch {
     /* storage unavailable: use the configured default */
   }
@@ -24,11 +41,18 @@ function useTheme(fallback?: string): [Theme, () => void] {
   const [theme, setTheme] = useState<Theme>(() => readTheme(fallback));
   useEffect(() => setTheme(readTheme(fallback)), [fallback]);
   useEffect(() => {
-    if (theme === 'auto') delete document.documentElement.dataset.theme;
-    else document.documentElement.dataset.theme = theme;
+    const apply = () => {
+      const root = document.documentElement;
+      if (theme === 'auto') delete root.dataset.theme;
+      else root.dataset.theme = theme === 'sun' ? (isNight() ? 'dark' : 'light') : theme;
+    };
+    apply();
+    if (theme !== 'sun') return;
+    const timer = setInterval(apply, 5 * 60_000);
+    return () => clearInterval(timer);
   }, [theme]);
   const cycle = () => {
-    const next: Theme = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto';
+    const next: Theme = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : theme === 'dark' ? 'sun' : 'auto';
     setTheme(next);
     try {
       localStorage.setItem('portal-theme', next);
@@ -41,13 +65,27 @@ function useTheme(fallback?: string): [Theme, () => void] {
 
 const slugFromPath = () => decodeURIComponent(window.location.pathname.replace(/^\/+|\/+$/g, ''));
 
-function useSummary(enabled: boolean): SummaryItem[] {
+// `beat` increases with every successful relevé; `alive` turns false when the
+// server stops answering, so stale readouts are never mistaken for fresh ones.
+function useSummary(enabled: boolean): { items: SummaryItem[]; beat: number; alive: boolean } {
   const [items, setItems] = useState<SummaryItem[]>([]);
+  const [beat, setBeat] = useState(0);
+  const [alive, setAlive] = useState(true);
   useEffect(() => {
     if (!enabled) return;
     const ctl = new AbortController();
     const load = () => {
-      if (!document.hidden) api.summary(ctl.signal).then((r) => setItems(r.items)).catch(() => {});
+      if (document.hidden) return;
+      api
+        .summary(ctl.signal)
+        .then((r) => {
+          setItems(r.items);
+          setBeat((b) => b + 1);
+          setAlive(true);
+        })
+        .catch((err: Error) => {
+          if (err.name !== 'AbortError') setAlive(false);
+        });
     };
     load();
     const timer = setInterval(load, 30_000);
@@ -56,7 +94,7 @@ function useSummary(enabled: boolean): SummaryItem[] {
       clearInterval(timer);
     };
   }, [enabled]);
-  return items;
+  return { items, beat, alive };
 }
 
 const rank = { ok: 0, unknown: 1, warn: 2, down: 3 } as const;
@@ -76,19 +114,21 @@ function setFavicon(color: string) {
 
 // Labels of the readouts whose state changed on the latest refresh; they
 // pulse once so a change catches the eye.
-function useChanged(items: SummaryItem[]): Set<string> {
-  const previous = useRef<Map<string, string>>(new Map());
-  const [changed, setChanged] = useState<Set<string>>(new Set());
+type Change = { from: string; to: string; since?: string };
+
+function useChanged(items: SummaryItem[]): Map<string, Change> {
+  const previous = useRef<Map<string, { state: string; since?: string }>>(new Map());
+  const [changed, setChanged] = useState<Map<string, Change>>(new Map());
   useEffect(() => {
-    const next = new Set<string>();
+    const next = new Map<string, Change>();
     for (const it of items) {
       const before = previous.current.get(it.label);
-      if (before !== undefined && before !== it.state) next.add(it.label);
-      previous.current.set(it.label, it.state);
+      if (before !== undefined && before.state !== it.state) next.set(it.label, { from: before.state, to: it.state, since: before.since });
+      previous.current.set(it.label, { state: it.state, since: it.since });
     }
     if (next.size === 0) return;
     setChanged(next);
-    const timer = setTimeout(() => setChanged(new Set()), 2400);
+    const timer = setTimeout(() => setChanged(new Map()), 2400);
     return () => clearTimeout(timer);
   }, [items]);
   return changed;
@@ -121,7 +161,35 @@ function kioskSeconds(): number {
   return Number.isFinite(n) && n >= 10 ? n : 30;
 }
 
-const themeLabels: Record<Theme, string> = { auto: 'Thème : système', light: 'Thème : clair', dark: 'Thème : sombre' };
+const themeLabels: Record<Theme, string> = { auto: 'Thème : système', light: 'Thème : clair', dark: 'Thème : sombre', sun: 'Thème : selon le soleil' };
+const accents: [string, string][] = [['', 'Cobalt'], ['indigo', 'Indigo'], ['azur', 'Azur'], ['sarcelle', 'Sarcelle']];
+
+// Swaps state with a view transition where the browser has them: pages slide
+// in the direction of travel and the active tab glides to its new place.
+function withTransition(direction: 'forward' | 'back', update: () => void) {
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+  if (!doc.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return update();
+  document.documentElement.dataset.dir = direction;
+  doc.startViewTransition(() => flushSync(update));
+}
+
+function beep() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 440;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.55);
+    osc.onended = () => ctx.close();
+  } catch {
+    /* no audio available: the visual signal remains */
+  }
+}
 
 export function App() {
   const [config, setConfig] = useState<PortalConfig | null>(null);
@@ -133,8 +201,19 @@ export function App() {
   const [notice, setNotice] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [theme, cycleTheme] = useTheme(config?.theme);
-  const summary = useSummary(config !== null);
+  const { items: summary, beat, alive } = useSummary(config !== null);
   const changed = useChanged(summary);
+  const [focused, setFocused] = useState<Widget | null>(null);
+  const [present, setPresent] = useState(() => {
+    const raw = new URLSearchParams(window.location.search).get('present');
+    return raw === null ? 0 : Math.max(5, Number(raw) || 15);
+  });
+  const [sound, setSound] = useState(() => store.get('portal-sound') === 'on');
+  const [accent, setAccent] = useState(() => store.get('portal-accent') ?? '');
+  useEffect(() => {
+    if (accent) document.documentElement.dataset.accent = accent;
+    else delete document.documentElement.dataset.accent;
+  }, [accent]);
   const [palette, setPalette] = useState(false);
   const [detail, setDetail] = useState<DetailRequest | null>(null);
   const [kiosk, setKiosk] = useState(kioskSeconds);
@@ -172,6 +251,41 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [changed]);
 
+  // A recovery is worth a word, with how long the trouble lasted; a new
+  // failure can ring when sounds are on.
+  useEffect(() => {
+    for (const [label, c] of changed) {
+      if (c.to === 'ok' && (c.from === 'warn' || c.from === 'down')) {
+        const minutes = c.since ? Math.max(1, Math.round((Date.now() - new Date(c.since).getTime()) / 60_000)) : 0;
+        const lasted = !minutes ? '' : minutes < 60 ? ` après ${minutes} min` : ` après ${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+        setNotice(`${label} : rétabli${lasted}.`);
+      }
+      if (c.to === 'down' && sound) beep();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changed]);
+
+  useEffect(() => {
+    if (!focused && !present) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (present) leavePresent();
+      else setFocused(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, present]);
+
+  // Presentation: every widget of every page in turn, one at a time, large.
+  const slides = useMemo(() => (config ? config.pages.flatMap((p) => p.columns.flatMap((c) => c.widgets)).filter((w) => w.type !== 'search') : []), [config]);
+  const [slide, setSlide] = useState(0);
+  useEffect(() => {
+    if (!present || slides.length === 0) return;
+    const timer = setInterval(() => setSlide((s) => (s + 1) % slides.length), present * 1000);
+    return () => clearInterval(timer);
+  }, [present, slides.length]);
+
   useEffect(() => {
     document.body.classList.toggle('kiosk', kiosk > 0);
     if (!kiosk || !config || config.pages.length < 2) return;
@@ -208,8 +322,9 @@ export function App() {
       return;
     }
     const target = pages[i];
+    if (i === index) return;
     window.history.pushState(null, '', i === 0 ? '/' : `/${target.slug}`);
-    setSlug(i === 0 ? '' : target.slug);
+    withTransition(i > index ? 'forward' : 'back', () => setSlug(i === 0 ? '' : target.slug));
   };
 
   const startEdit = () => {
@@ -316,6 +431,21 @@ export function App() {
     setKiosk(0);
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
   };
+  const enterPresent = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('present', '15');
+    window.history.replaceState(null, '', url);
+    setSlide(0);
+    setPresent(15);
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  };
+  const leavePresent = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('present');
+    window.history.replaceState(null, '', url);
+    setPresent(0);
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  };
   const toggleNotify = async (on: boolean) => {
     if (on && Notification.permission !== 'granted' && (await Notification.requestPermission()) !== 'granted') {
       setNotice('Le navigateur a refusé les notifications pour ce site.');
@@ -381,6 +511,29 @@ export function App() {
         ? { label: 'Quitter le mode kiosque', hint: 'Action', run: () => leaveKiosk() }
         : { label: 'Mode kiosque (plein écran, rotation des pages)', hint: 'Action', run: () => enterKiosk() },
     );
+    const nextAccent = accents[(accents.findIndex(([v]) => v === accent) + 1) % accents.length];
+    list.push({
+      label: `Couleur d’accent : passer à ${nextAccent[1]}`,
+      hint: 'Action',
+      run: () => {
+        store.set('portal-accent', nextAccent[0] || null);
+        setAccent(nextAccent[0]);
+      },
+    });
+    list.push(
+      present
+        ? { label: 'Quitter le mode présentation', hint: 'Action', run: () => leavePresent() }
+        : { label: 'Mode présentation (un widget à la fois)', hint: 'Action', run: () => enterPresent() },
+    );
+    list.push({
+      label: sound ? 'Couper le signal sonore' : 'Signal sonore quand un indicateur passe au rouge',
+      hint: 'Action',
+      run: () => {
+        store.set('portal-sound', sound ? null : 'on');
+        setSound(!sound);
+        if (!sound) beep();
+      },
+    });
     if ('Notification' in window) {
       list.push(
         notify
@@ -399,9 +552,9 @@ export function App() {
     if (config.user) list.push({ label: 'Se déconnecter', hint: 'Action', run: () => window.location.assign('/auth/logout') });
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, pages, draft, theme, index, kiosk, notify, found]);
+  }, [config, pages, draft, theme, index, kiosk, notify, found, accent, sound, present]);
 
-  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : theme === 'sun' ? Sunrise : Monitor;
   const dirty = useMemo(() => draft !== null && JSON.stringify(draft) !== JSON.stringify(config?.pages), [draft, config]);
 
   if (failure) {
@@ -431,6 +584,13 @@ export function App() {
               </a>
             ))}
           </nav>
+          <span
+            key={beat}
+            className={`beat${alive ? '' : ' beat-lost'}`}
+            role="img"
+            aria-label={alive ? 'Relevés à jour' : 'Contact perdu avec le serveur'}
+            title={alive ? 'Relevés à jour : ce point bat à chaque relevé' : 'Contact perdu avec le serveur : les indicateurs ne sont plus à jour'}
+          />
           <div className="band-tools">
             <button className="band-btn band-btn-text band-btn-keys" onClick={() => setPalette(true)} aria-label="Ouvrir la palette de commandes" title="Palette de commandes">
               <CommandIcon size={15} aria-hidden /> <kbd>Ctrl K</kbd>
@@ -458,7 +618,7 @@ export function App() {
         {summary.length > 0 && (
           <ul className="readouts" aria-label="État du lab">
             {summary.map((s) => (
-              <li key={s.label} className={changed.has(s.label) ? 'readout-changed' : undefined}>
+              <li key={s.label} className={changed.has(s.label) ? (changed.get(s.label)!.to === 'ok' ? 'readout-changed readout-recovered' : 'readout-changed') : undefined}>
                 <button onClick={() => reveal(s.type)} title="Voir le détail">
                   <Mark state={s.state} />
                   <span className="readout-text">
@@ -533,9 +693,29 @@ export function App() {
 
       {detail && <DetailDrawer request={detail} onClose={() => setDetail(null)} />}
 
+      {(focused || (present > 0 && slides.length > 0)) && (
+        <div className={`focus${present ? ' focus-present' : ''}`} role="dialog" aria-modal="true" aria-label="Widget agrandi" onClick={(e) => e.target === e.currentTarget && !present && setFocused(null)}>
+          <div className="focus-frame">
+            <button className="icon-btn focus-close" onClick={() => (present ? leavePresent() : setFocused(null))} aria-label={present ? 'Quitter le mode présentation' : 'Fermer'} autoFocus>
+              <Close size={18} aria-hidden />
+            </button>
+            <DetailProvider value={setDetail}>
+              <FocusContext.Provider value={null}>
+                <ExpandedContext.Provider value>
+                  <WidgetView key={(present ? slides[slide % slides.length] : focused!).id} widget={present ? slides[slide % slides.length] : focused!} preview={false} />
+                </ExpandedContext.Provider>
+              </FocusContext.Provider>
+            </DetailProvider>
+            {present > 0 && <i key={slide} className="focus-progress" style={{ animationDuration: `${present}s` }} />}
+          </div>
+        </div>
+      )}
+
       <main className="page">
         <DetailProvider value={draft ? null : setDetail}>
-          {draft ? <PageEditor key={index} page={page} onChange={updatePage} /> : <PageView key={page.slug} page={page} />}
+          <FocusContext.Provider value={draft ? null : setFocused}>
+            {draft ? <PageEditor key={index} page={page} onChange={updatePage} /> : <PageView key={page.slug} page={page} />}
+          </FocusContext.Provider>
         </DetailProvider>
       </main>
     </>

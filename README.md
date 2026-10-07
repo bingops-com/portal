@@ -76,6 +76,7 @@ une adresse iCal privée (`PORTAL_VAR_ICAL_URL`).
 | `events` | API Kubernetes (avertissements) | `namespaces`, `limit`, `context` |
 | `argocd` | Applications Argo CD via l'API Kubernetes | `url` (liens), `namespace`, `ignore`, `context` |
 | `activity` | Fil des déploiements, alertes, sauvegardes et redémarrages | `url` (Prometheus, facultatif), `cronjobs`, `hours`, `limit`, `context` |
+| `topology` | Carte du lab : états tirés des Applications Argo CD et des endpoints Gatus | `nodes: [{id, label, layer, app, endpoint, note}]`, `links: [{from, to}]`, `gatus`, `context` |
 | `incidents` | Journal tenu par le serveur d'après le bandeau | `days`, `limit` |
 | `deadlines` | Certificats, échéances saisies, fins de support (endoflife.date) | `items: [{title, date, note}]`, `eol: [{product, cycle, title}]`, `certificates`, `warnDays` |
 | `versions` | Version en service face à la dernière release GitHub | `items: [{name, repo, source}]` (`source` : `namespace/workload`, `node:kubelet`, `node:os`), `token` |
@@ -112,6 +113,22 @@ workload, ressources à traiter d'une application Argo CD, étiquettes d'une
 alerte, historique d'une métrique sur 3 heures, 24 heures ou 7 jours. Dans le
 mode édition, les listes (flux, liens, métriques, fuseaux) se règlent par
 formulaire.
+
+Mouvement et confort (tout se fige si le système demande de réduire les
+animations) :
+
+- un point bat dans le bandeau à chaque relevé et se vide si le serveur ne
+  répond plus ; un indicateur qui revient au vert le signale, avec la durée ;
+- les lignes glissent à leur nouvelle place quand un tri change, les valeurs
+  clignotent dans le sens de leur variation, les courbes se tracent et les
+  pourcentages s'affichent en anneaux ;
+- les pages glissent dans le sens de la navigation ; chaque widget s'agrandit
+  en plein cadre (bouton au survol de son titre) et montre alors toutes ses
+  lignes ;
+- la palette de commandes propose aussi : couleur d'accent, mode présentation
+  (`?present=15`, un widget à la fois), signal sonore quand un indicateur
+  passe au rouge. Le thème a un quatrième mode, « selon le soleil » ;
+- un widget retiré en édition peut être rétabli pendant quelques secondes.
 
 Autres comportements :
 

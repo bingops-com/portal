@@ -77,7 +77,7 @@ export function MarketsWidget({ data }: Props<Markets>) {
             </div>
             <Sparkline values={c.sparkline} className={up ? 'spark-up' : 'spark-down'} />
             <span className="row-aside">
-              <AnimatedNumber value={c.price} format={(n) => money(n, data.currency)} />
+              <AnimatedNumber flash value={c.price} format={(n) => money(n, data.currency)} />
               <small className={up ? 'up' : 'down'}>
                 {up ? '+' : '−'}
                 {Math.abs(c.change24h).toFixed(2).replace('.', ',')} %

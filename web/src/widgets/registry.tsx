@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Options } from '../api';
-import { ActivityWidget, AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, DeadlinesWidget, EventsWidget, ForecastWidget, GameServerWidget, GatusWidget, IncidentsWidget, PrometheusWidget, PullsWidget, ReleasesWidget, VersionsWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, gameServerBadge, gatusBadge, incidentsBadge, pullsBadge, versionsBadge, workloadsBadge } from './ops';
+import { ActivityWidget, AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, DeadlinesWidget, EventsWidget, ForecastWidget, GameServerWidget, GatusWidget, IncidentsWidget, PrometheusWidget, PullsWidget, ReleasesWidget, TopologyWidget, VersionsWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, gameServerBadge, gatusBadge, incidentsBadge, pullsBadge, versionsBadge, workloadsBadge } from './ops';
 import { CalendarWidget, ClockWidget, MarketsWidget, PostsWidget, RssWidget, SearchWidget, VideosWidget, WeatherWidget, weatherBadge } from './info';
 
 export type Field = {
@@ -122,6 +122,40 @@ const list: WidgetMeta[] = [
       context,
     ],
     component: ActivityWidget,
+  },
+  {
+    type: 'topology', label: 'Carte du lab', group: 'Ops', refresh: 30,
+    description: 'Schéma vivant des services et de leurs dépendances ; les liaisons s’animent et prennent la couleur de l’état.',
+    defaults: {
+      nodes: [
+        { id: 'internet', label: 'Internet', layer: 0 },
+        { id: 'app', label: 'Application', layer: 1, app: '' },
+      ],
+      links: [{ from: 'internet', to: 'app' }],
+    },
+    fields: [
+      {
+        key: 'nodes', label: 'Éléments', kind: 'list', itemName: 'un élément',
+        item: [
+          { key: 'id', label: 'Identifiant', kind: 'text', placeholder: 'traefik' },
+          { key: 'label', label: 'Nom affiché', kind: 'text' },
+          { key: 'layer', label: 'Colonne', kind: 'number', help: '0 à gauche, puis 1, 2…' },
+          { key: 'app', label: 'Application Argo CD', kind: 'text', help: 'Donne son état à l’élément.' },
+          { key: 'endpoint', label: 'Endpoint Gatus', kind: 'text' },
+          { key: 'note', label: 'Note', kind: 'text' },
+        ],
+      },
+      {
+        key: 'links', label: 'Liaisons', kind: 'list', itemName: 'une liaison',
+        item: [
+          { key: 'from', label: 'De', kind: 'text' },
+          { key: 'to', label: 'Vers', kind: 'text' },
+        ],
+      },
+      { key: 'gatus', label: 'Adresse de Gatus', kind: 'text', help: 'Nécessaire si des éléments citent un endpoint.' },
+      context,
+    ],
+    component: TopologyWidget,
   },
   {
     type: 'incidents', label: 'Journal d’incidents', group: 'Ops', refresh: 30,

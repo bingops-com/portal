@@ -1,29 +1,48 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { api, type Options } from '../api';
 import { useDetail, type DetailData } from '../components/Detail';
-import { Bell, DatabaseBackup, Rocket, RotateCw } from 'lucide-react';
-import { AnimatedNumber, Empty, Mark, Sparkline, ext, type State } from '../components/bits';
+import { Bell, Check, Copy, DatabaseBackup, Rocket, RotateCw } from 'lucide-react';
+import { AnimatedNumber, Empty, ExpandedContext, Gauge, Mark, Sparkline, ext, useFlip, type State } from '../components/bits';
 import { ago, age, formatStat } from '../format';
 
 type Props<T> = { data: T; options: Options; widgetId: string };
 
 // A row title that opens the detail panel; plain text while editing.
-function Open({ onOpen, children }: { onOpen?: () => void; children: React.ReactNode }) {
+function Open({ onOpen, copy, children }: { onOpen?: () => void; copy?: string; children: React.ReactNode }) {
+  const [copied, setCopied] = useState(false);
   if (!onOpen) return <span className="row-title">{children}</span>;
   return (
-    <button className="row-title row-open" onClick={onOpen}>
-      {children}
-    </button>
+    <span className="row-head">
+      <button className="row-title row-open" onClick={onOpen}>
+        {children}
+      </button>
+      {copy && (
+        <button
+          className="row-action"
+          aria-label={`Copier ${copy}`}
+          title={copied ? 'Copié' : 'Copier le nom'}
+          onClick={() => {
+            navigator.clipboard?.writeText(copy).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            });
+          }}
+        >
+          {copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
+        </button>
+      )}
+    </span>
   );
 }
 
 function More<T>({ items, limit, children }: { items: T[]; limit: number; children: (shown: T[]) => React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const shown = open ? items : items.slice(0, limit);
+  const expanded = useContext(ExpandedContext);
+  const shown = open || expanded ? items : items.slice(0, limit);
   return (
     <>
       {children(shown)}
-      {items.length > limit && (
+      {items.length > limit && !expanded && (
         <button className="more" onClick={() => setOpen(!open)} aria-expanded={open}>
           {open ? 'Réduire la liste' : `Afficher les ${items.length - limit} autres`}
         </button>
@@ -58,7 +77,7 @@ export function ClusterWidget({ data }: Props<Cluster>) {
         <div>
           <dt>Pods actifs</dt>
           <dd>
-            <AnimatedNumber value={data.pods.Running ?? 0} format={(n) => String(Math.round(n))} />
+            <AnimatedNumber flash value={data.pods.Running ?? 0} format={(n) => String(Math.round(n))} />
           </dd>
         </div>
         <div>
@@ -117,16 +136,18 @@ const kinds: Record<string, string> = { Deployment: 'deploy', StatefulSet: 'sts'
 
 export function WorkloadsWidget({ data, options, widgetId }: Props<Workloads>) {
   const detail = useDetail();
+  const flip = useFlip<HTMLUListElement>();
   if (data.workloads.length === 0) return <Empty>Aucun workload dans les namespaces sélectionnés.</Empty>;
   return (
     <More items={data.workloads} limit={Number(options.limit) || 10}>
       {(shown) => (
-        <ul className="rows">
+        <ul className="rows" ref={flip}>
           {shown.map((w) => (
-            <li key={`${w.kind}/${w.namespace}/${w.name}`} className="row">
+            <li key={`${w.kind}/${w.namespace}/${w.name}`} data-flip={`${w.kind}/${w.namespace}/${w.name}`} className="row">
               <Mark state={w.healthy ? 'ok' : w.ready > 0 ? 'warn' : 'down'} label={w.healthy ? 'Prêt' : 'Incomplet'} />
               <div className="row-main">
                 <Open
+                  copy={w.name}
                   onOpen={
                     detail
                       ? () => detail({ title: w.name, subtitle: `${w.kind} dans ${w.namespace}`, load: () => api.detail<DetailData>(widgetId, { kind: w.kind, namespace: w.namespace, name: w.name }) })
@@ -216,19 +237,21 @@ function argoState(a: Argo['apps'][number]): State {
 
 export function ArgoWidget({ data, options, widgetId }: Props<Argo>) {
   const detail = useDetail();
+  const flip = useFlip<HTMLUListElement>();
   if (data.apps.length === 0) return <Empty>Aucune Application Argo CD visible avec ce compte de service.</Empty>;
   return (
     <More items={data.apps} limit={Number(options.limit) || 12}>
       {(shown) => (
-        <ul className="rows">
+        <ul className="rows" ref={flip}>
           {shown.map((a) => {
             const state = a.ignored ? 'none' : argoState(a);
             const label = a.sync !== 'Synced' ? a.sync : a.health === 'Healthy' ? 'Synced' : a.health;
             return (
-              <li key={a.name} className="row">
+              <li key={a.name} data-flip={a.name} className="row">
                 <Mark state={state} />
                 <div className="row-main">
                   <Open
+                    copy={a.name}
                     onOpen={
                       detail
                         ? () => detail({ title: a.name, subtitle: 'Application Argo CD', linkLabel: 'Ouvrir dans Argo CD', load: () => api.detail<DetailData>(widgetId, { name: a.name }) })
@@ -294,8 +317,8 @@ export function GatusWidget({ data, widgetId }: Props<Gatus>) {
                   <small>{Math.round(e.ms)} ms</small>
                 </span>
                 <span className="ticks" aria-hidden>
-                  {e.results.map((r, i) => (
-                    <i key={i} className={r.ok ? 'tick-ok' : 'tick-down'} title={`${new Date(r.t).toLocaleString('fr-FR')}, ${Math.round(r.ms)} ms`} />
+                  {e.results.map((r) => (
+                    <i key={r.t} className={r.ok ? 'tick-ok' : 'tick-down'} title={`${new Date(r.t).toLocaleString('fr-FR')}, ${Math.round(r.ms)} ms`} />
                   ))}
                 </span>
               </li>
@@ -336,13 +359,15 @@ export function PrometheusWidget({ data, widgetId }: Props<Prom>) {
             : {})}
         >
           <span className="stat-label">{s.label}</span>
-          <span className="stat-value">{s.error || s.value === null ? 'n/d' : <AnimatedNumber value={s.value} format={(n) => formatStat(s.format === 'number' && Number.isInteger(s.value) ? Math.round(n) : n, s.format)} />}</span>
-          {s.error ? <span className="stat-note">{s.error}</span> : <Sparkline values={s.series} />}
-          {s.format === 'percent' && s.value !== null && (
-            <span className="meter" aria-hidden>
-              <i style={{ width: `${Math.min(100, Math.max(0, s.value))}%` }} />
-            </span>
+          {s.format === 'percent' && s.value !== null && !s.error ? (
+            <Gauge value={s.value} state={s.state}>
+              <AnimatedNumber value={s.value} format={(n) => `${Math.round(n)}`} />
+              <small>%</small>
+            </Gauge>
+          ) : (
+            <span className="stat-value">{s.error || s.value === null ? 'n/d' : <AnimatedNumber flash value={s.value} format={(n) => formatStat(s.format === 'number' && Number.isInteger(s.value) ? Math.round(n) : n, s.format)} />}</span>
           )}
+          {s.error ? <span className="stat-note">{s.error}</span> : <Sparkline values={s.series} />}
         </div>
       ))}
     </div>
@@ -583,7 +608,7 @@ export function GameServerWidget({ data }: Props<GameServer>) {
         <div>
           <dt>Joueurs</dt>
           <dd>
-            <AnimatedNumber value={data.players} format={(n) => String(Math.round(n))} />/{data.max}
+            <AnimatedNumber flash value={data.players} format={(n) => String(Math.round(n))} />/{data.max}
           </dd>
         </div>
         <div>
@@ -615,6 +640,7 @@ export function ReleasesWidget({ data }: Props<Releases>) {
       <ul className="rows">
         {data.releases.map((r) => (
           <li key={r.repo} className="row">
+            <img className="avatar avatar-square" src={`https://github.com/${encodeURIComponent(r.repo.split('/')[0])}.png?size=48`} alt="" width={24} height={24} loading="lazy" />
             <div className="row-main">
               <a className="row-title" {...ext(r.url)}>
                 {r.repo.split('/')[1]}
@@ -643,13 +669,13 @@ export function PullsWidget({ data }: Props<Pulls>) {
       <ul className="rows">
         {data.pulls.map((p) => (
           <li key={p.number} className="row row-top">
-            <span className="points">#{p.number}</span>
+            <img className="avatar" src={`https://github.com/${encodeURIComponent(p.author)}.png?size=48`} alt="" width={24} height={24} loading="lazy" />
             <div className="row-main">
               <a className="row-title wrap" {...ext(p.url)}>
                 {p.title}
               </a>
               <span className="row-sub">
-                {p.author}
+                #{p.number}, {p.author}
                 {p.draft ? ', brouillon' : ''}
               </span>
             </div>
@@ -758,10 +784,11 @@ export function DeadlinesWidget({ data, options }: Props<Deadlines>) {
 type Versions = { current: number; items: { name: string; running: string; latest: string; lag: string; state: State; url?: string }[] };
 
 export function VersionsWidget({ data }: Props<Versions>) {
+  const flip = useFlip<HTMLUListElement>();
   return (
-    <ul className="rows">
+    <ul className="rows" ref={flip}>
       {data.items.map((v) => (
-        <li key={v.name} className="row">
+        <li key={v.name} data-flip={v.name} className="row">
           <Mark state={v.state === 'none' ? 'unknown' : v.state} label={v.lag} />
           <div className="row-main">
             {v.url ? (
@@ -810,5 +837,43 @@ export function ForecastWidget({ data }: Props<Forecast>) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// --- Lab map ---
+
+type Topology = { nodes: { id: string; label: string; layer: number; note?: string; state: State }[]; links: { from: string; to: string; state: State }[] };
+
+export function TopologyWidget({ data }: Props<Topology>) {
+  const layers = [...new Set(data.nodes.map((n) => n.layer))].sort((a, b) => a - b);
+  const columns = layers.map((l) => data.nodes.filter((n) => n.layer === l));
+  const tallest = Math.max(...columns.map((c) => c.length));
+  const at = new Map<string, [number, number]>();
+  columns.forEach((col, ci) => col.forEach((n, ni) => at.set(n.id, [((ci + 0.5) / columns.length) * 100, ((ni + 0.5) / col.length) * 100])));
+  return (
+    <div className="topology" style={{ height: `${Math.max(3, tallest) * 4.25}rem` }}>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+        {data.links.map((l) => {
+          const [x1, y1] = at.get(l.from)!;
+          const [x2, y2] = at.get(l.to)!;
+          const mid = (x1 + x2) / 2;
+          return <path key={`${l.from}>${l.to}`} d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`} className={`flow flow-${l.state}`} vectorEffect="non-scaling-stroke" />;
+        })}
+      </svg>
+      {data.nodes.map((n) => {
+        const [x, y] = at.get(n.id)!;
+        return (
+          <div key={n.id} className={`topo-node topo-${n.state}`} style={{ left: `${x}%`, top: `${y}%` }} title={n.note}>
+            {n.state !== 'none' && <Mark state={n.state} />}
+            <span>{n.label}</span>
+          </div>
+        );
+      })}
+      <p className="sr-only">
+        {data.nodes.filter((n) => n.state === 'down' || n.state === 'warn').length === 0
+          ? 'Tous les éléments suivis sont sains.'
+          : `À traiter : ${data.nodes.filter((n) => n.state === 'down' || n.state === 'warn').map((n) => n.label).join(', ')}.`}
+      </p>
+    </div>
   );
 }

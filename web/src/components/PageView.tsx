@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowLeft, ArrowRight, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, Trash2, Undo2 } from 'lucide-react';
 import type { Column, Page, Widget } from '../api';
 import { newId } from '../format';
 import { registry } from '../widgets/registry';
@@ -85,6 +85,13 @@ export function PageEditor({ page, onChange }: { page: Page; onChange: (page: Pa
   const [dragging, setDragging] = useState<Widget | null>(null);
   const [adding, setAdding] = useState<number | null>(null);
   const [editing, setEditing] = useState<Widget | null>(null);
+  // The last removed widget can be put back for a few seconds.
+  const [removed, setRemoved] = useState<{ widget: Widget; column: number; at: number } | null>(null);
+  useEffect(() => {
+    if (!removed) return;
+    const timer = setTimeout(() => setRemoved(null), 7000);
+    return () => clearTimeout(timer);
+  }, [removed]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   const columns = page.columns;
@@ -144,14 +151,33 @@ export function PageEditor({ page, onChange }: { page: Page; onChange: (page: Pa
                 onAdd={() => setAdding(i)}
               >
                 {col.widgets.map((w) => (
-                  <SortableWidget key={w.id} widget={w} onEdit={() => setEditing(w)} onRemove={() => mapWidgets((widgets) => widgets.filter((x) => x.id !== w.id))} />
+                  <SortableWidget key={w.id} widget={w} onEdit={() => setEditing(w)} onRemove={() => {
+                      setRemoved({ widget: w, column: i, at: col.widgets.indexOf(w) });
+                      mapWidgets((widgets) => widgets.filter((x) => x.id !== w.id));
+                    }}
+                  />
                 ))}
               </EditColumn>
             </SortableContext>
           ))}
         </div>
-        <DragOverlay>{dragging && <div className="drag-ghost">{dragging.title || registry[dragging.type]?.label || dragging.type}</div>}</DragOverlay>
+        <DragOverlay dropAnimation={{ duration: 280, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }}>{dragging && <div className="drag-ghost">{dragging.title || registry[dragging.type]?.label || dragging.type}</div>}</DragOverlay>
       </DndContext>
+
+      {removed && (
+        <p className="toast toast-fixed" role="status">
+          « {removed.widget.title || registry[removed.widget.type]?.label || removed.widget.type} » retiré.
+          <button
+            className="btn"
+            onClick={() => {
+              mapWidgets((widgets, i) => (i === Math.min(removed.column, columns.length - 1) ? [...widgets.slice(0, removed.at), removed.widget, ...widgets.slice(removed.at)] : widgets));
+              setRemoved(null);
+            }}
+          >
+            <Undo2 size={15} aria-hidden /> Annuler
+          </button>
+        </p>
+      )}
 
       {adding !== null && (
         <AddWidgetDialog
