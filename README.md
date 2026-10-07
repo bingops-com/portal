@@ -100,8 +100,8 @@ ne lit ni Secrets ni ConfigMaps.
 Ce dépôt ne contient que la source. L'image, les manifests et la configuration
 déployée vivent dans `bingops-com/labops` :
 
-- `docker/portal` construit `ghcr.io/bingops-com/portal:<VERSION>` en clonant
-  ce dépôt au tag `v<VERSION>` ;
+- `docker/portal` construit `ghcr.io/bingops-com/portal` en clonant la branche
+  `master` de ce dépôt ;
 - `apps/workloads/portal` déploie le portail sur `labprod` (`https://lab.bingo`)
   et porte `base/portal.yaml`, la disposition réellement servie ;
 - `apps/workloads/gatus` fournit les données de disponibilité.
@@ -109,14 +109,9 @@ déployée vivent dans `bingops-com/labops` :
 `config/portal.yaml` n'est ici qu'un exemple pour le développement local ;
 l'image n'embarque aucune configuration.
 
-Publier une version :
-
-```sh
-make check
-git tag v0.2.0 && git push origin v0.2.0
-```
-
-Le tag déclenche `.github/workflows/trigger-rebuild.yml`, qui demande à
-`labops` de reconstruire l'image (secret `REPO_INFRA_TOKEN`, comme pour
-`www.bingops.com`). Il reste à passer `VERSION`, le Dockerfile et le tag du
-Deployment à la même version dans `labops` ; voir `docker/portal/README.md`.
+Chaque push sur `master` qui touche au code déclenche
+`.github/workflows/trigger-rebuild.yml`, qui demande à `labops` de
+reconstruire et publier l'image (secret `REPO_INFRA_TOKEN`, comme pour
+`www.bingops.com`). Une pull request déclenche le même build sans publication.
+Pour déployer l'image obtenue, reportez son tag `sha-…` dans le Deployment de
+`labops` ; voir `docker/portal/README.md`.
