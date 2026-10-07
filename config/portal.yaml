@@ -17,6 +17,15 @@ pages:
             title: Alertes
             options:
               url: ${PORTAL_VAR_PROMETHEUS_URL}
+          - type: backups
+            title: Sauvegardes
+            options:
+              maxAgeHours: 26
+              cronjobs: []
+          - type: certificates
+            title: Certificats
+            options:
+              warnDays: 14
           - type: events
             title: Événements
             options:

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/bingops-com/portal/internal/auth"
 	"github.com/bingops-com/portal/internal/cache"
 	"github.com/bingops-com/portal/internal/config"
 	"github.com/bingops-com/portal/internal/providers"
@@ -141,5 +142,32 @@ func TestStaticFallsBackToIndexForPageRoutes(t *testing.T) {
 	}
 	if rec := do(h, "GET", "/healthz", "", nil); rec.Code != http.StatusOK {
 		t.Errorf("healthz: %d", rec.Code)
+	}
+}
+
+func TestLoginRequiredForWritesButNotReads(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "portal.yaml")
+	os.WriteFile(path, []byte(testYAML), 0o644)
+	login, err := auth.New(auth.Config{Issuer: "https://idp.invalid/", ClientID: "portal", PublicURL: "https://portal.invalid"}, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := (&Server{
+		Store: config.NewStore(path, filepath.Join(dir, "data"), providers.Known), Deps: &providers.Deps{Kube: providers.NewKubeClients()},
+		Cache: cache.New(), Assets: fstest.MapFS{"index.html": {Data: []byte("app")}}, Auth: login,
+	}).Handler()
+
+	for _, c := range [][2]string{{"PUT", "/api/layout"}, {"DELETE", "/api/layout"}, {"POST", "/api/preview"}} {
+		if rec := do(h, c[0], c[1], layoutBody, jsonHeader); rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s without a session: %d", c[0], c[1], rec.Code)
+		}
+	}
+	rec := do(h, "GET", "/api/config", "", nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"loginRequired":true`) || strings.Contains(rec.Body.String(), `"user"`) {
+		t.Errorf("config: %d %s", rec.Code, rec.Body)
+	}
+	if rec := do(h, "GET", "/api/data/links", "", nil); rec.Code != http.StatusOK {
+		t.Errorf("reads must stay open: %d", rec.Code)
 	}
 }

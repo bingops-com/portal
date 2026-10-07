@@ -34,6 +34,10 @@ PORTAL_VAR_PROMETHEUS_URL=http://localhost:9090 make run
 | `PORTAL_ADDR` | `:3000` | Adresse d'écoute |
 | `PORTAL_READONLY` | vide | `true` désactive l'édition dans le navigateur |
 | `PORTAL_CLUSTER_NAME` | `cluster` | Nom affiché pour le cluster hôte |
+| `PORTAL_OIDC_ISSUER` | vide | Active la connexion OpenID Connect exigée pour modifier (ex. `https://auth.example.com/application/o/portal/`) |
+| `PORTAL_OIDC_CLIENT_ID` | | Identifiant du client public (PKCE, sans secret) |
+| `PORTAL_OIDC_GROUP` | vide | Groupe requis pour modifier ; vide : tout compte authentifié |
+| `PORTAL_PUBLIC_URL` | | Adresse externe du portail ; le fournisseur doit autoriser `<adresse>/auth/callback` |
 | `PORTAL_VAR_*` | | Valeurs référencées par `${PORTAL_VAR_NOM}` dans les options |
 
 ### YAML et édition dans le navigateur
@@ -68,7 +72,9 @@ une adresse iCal privée (`PORTAL_VAR_ICAL_URL`).
 | `kubernetes` | API Kubernetes | `context` |
 | `workloads` | API Kubernetes | `namespaces`, `exclude`, `limit`, `context` |
 | `events` | API Kubernetes (avertissements) | `namespaces`, `limit`, `context` |
-| `argocd` | Applications Argo CD via l'API Kubernetes | `url` (liens), `namespace`, `context` |
+| `argocd` | Applications Argo CD via l'API Kubernetes | `url` (liens), `namespace`, `ignore`, `context` |
+| `certificates` | Certificats cert-manager via l'API Kubernetes | `warnDays`, `namespaces`, `exclude`, `context` |
+| `backups` | Sauvegardes CloudNativePG (détectées) et CronJobs | `cronjobs` (`namespace/nom`), `maxAgeHours`, `context` |
 | `gatus` | API Gatus | `url`, `publicUrl` |
 | `prometheus` | PromQL | `url`, `stats: [{label, query, format, warn, danger, sparkline}]` |
 | `alerts` | Alertes Prometheus en cours | `url`, `ignore` |
@@ -83,17 +89,25 @@ une adresse iCal privée (`PORTAL_VAR_ICAL_URL`).
 | `search` | Navigateur | `engine`, `bangs: [{prefix, url}]` |
 | `clock` | Navigateur | `zones: [{label, timezone}]` |
 
-Le bandeau résume en continu tous les widgets `kubernetes`, `argocd`, `gatus`
-et `alerts` de la configuration, quelle que soit la page affichée.
+Le bandeau résume en continu tous les widgets `kubernetes`, `argocd`, `gatus`,
+`alerts`, `certificates` et `backups` de la configuration, quelle que soit la
+page affichée. Les alertes de sévérité `info` n'y comptent pas.
 
 ## Sécurité
 
-Le portail n'a pas d'authentification : son accès repose sur le réseau (LAN et
-tailnet, via l'allowlist Traefik). Quiconque l'atteint peut modifier la
-disposition, donc faire interroger au serveur des adresses HTTP de son choix.
-Passez `PORTAL_READONLY=true` pour figer la disposition sur le YAML. Les
-requêtes d'écriture venant d'un autre site sont refusées. Le compte de service
-ne lit ni Secrets ni ConfigMaps.
+La lecture est ouverte à qui atteint le portail (LAN et tailnet, via
+l'allowlist Traefik). Pour l'édition, deux modes :
+
+- avec `PORTAL_OIDC_ISSUER`, modifier la disposition exige une connexion
+  OpenID Connect (flux « authorization code » avec PKCE, client public), et
+  éventuellement l'appartenance à `PORTAL_OIDC_GROUP`. La session dure 12 h ;
+  sa clé de signature est créée dans `PORTAL_DATA/session.key` ;
+- sans cette variable, quiconque atteint le portail peut modifier la
+  disposition, donc faire interroger au serveur des adresses HTTP de son
+  choix. `PORTAL_READONLY=true` fige alors la disposition sur le YAML.
+
+Dans tous les cas, les requêtes d'écriture venant d'un autre site sont
+refusées, et le compte de service ne lit ni Secrets ni ConfigMaps.
 
 ## Publication et déploiement
 

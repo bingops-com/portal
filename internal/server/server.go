@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bingops-com/portal/internal/auth"
 	"github.com/bingops-com/portal/internal/cache"
 	"github.com/bingops-com/portal/internal/config"
 	"github.com/bingops-com/portal/internal/providers"
@@ -29,6 +30,8 @@ type Server struct {
 	Cache    *cache.Cache
 	Assets   fs.FS
 	ReadOnly bool
+	// Auth, when set, requires a login for every write. Reads stay open.
+	Auth *auth.Auth
 }
 
 type dataResponse struct {
@@ -47,6 +50,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/data/{id}", s.getData)
 	mux.HandleFunc("POST /api/preview", s.guard(s.postPreview))
 	mux.HandleFunc("GET /api/summary", s.getSummary)
+	if s.Auth != nil {
+		mux.HandleFunc("GET /auth/login", s.Auth.Login)
+		mux.HandleFunc("GET /auth/callback", s.Auth.Callback)
+		mux.HandleFunc("GET /auth/logout", s.Auth.Logout)
+	}
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) { writeError(w, http.StatusNotFound, "route inconnue") })
 	mux.Handle("/", s.static())
 	return mux
@@ -72,6 +80,10 @@ func (s *Server) guard(next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, http.StatusForbidden, "le portail est en lecture seule (PORTAL_READONLY)")
 			return
 		}
+		if s.Auth != nil && s.Auth.User(r) == nil {
+			writeError(w, http.StatusUnauthorized, "connexion requise pour modifier le portail")
+			return
+		}
 		if origin := r.Header.Get("Origin"); origin != "" {
 			if u, err := url.Parse(origin); err != nil || u.Host != r.Host {
 				writeError(w, http.StatusForbidden, "requête inter-site refusée")
@@ -91,15 +103,22 @@ func (s *Server) guard(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (s *Server) getConfig(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) getConfig(w http.ResponseWriter, r *http.Request) {
 	cfg, source, err := s.Store.Effective()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"title": cfg.Title, "theme": cfg.Theme, "pages": cfg.Pages, "source": source, "readOnly": s.ReadOnly,
-	})
+		"loginRequired": s.Auth != nil,
+	}
+	if s.Auth != nil {
+		if u := s.Auth.User(r); u != nil {
+			out["user"] = u.Name
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) putLayout(w http.ResponseWriter, r *http.Request) {

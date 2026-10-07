@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Monitor, Moon, PencilLine, Plus, RotateCcw, Sun, Trash2 } from 'lucide-react';
+import { Download, LogOut, Monitor, Moon, PencilLine, Plus, RotateCcw, Sun, Trash2 } from 'lucide-react';
 import { stringify } from 'yaml';
 import { api, type Page, type PortalConfig, type SummaryItem } from './api';
 import { Mark } from './components/bits';
@@ -106,6 +106,16 @@ export function App() {
     setDraftIndex(viewIndex);
     setNotice('');
   };
+  const needsLogin = Boolean(config?.loginRequired && !config.user);
+  const loginUrl = `/auth/login?return=${encodeURIComponent(`${window.location.pathname}#edit`)}`;
+
+  // Coming back from the login page with #edit resumes what the person asked for.
+  useEffect(() => {
+    if (!config || window.location.hash !== '#edit') return;
+    window.history.replaceState(null, '', window.location.pathname);
+    if (!config.readOnly && !needsLogin) startEdit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config === null]);
   const stopEdit = (next?: PortalConfig) => {
     setDraft(null);
     setConfirmDelete(false);
@@ -126,7 +136,13 @@ export function App() {
         stopEdit(next);
         setNotice(done);
       })
-      .catch((err: Error) => setNotice(`Enregistrement impossible : ${err.message}`))
+      .catch((err: Error) =>
+        setNotice(
+          /connexion requise/.test(err.message)
+            ? 'Votre session a expiré. Exportez la disposition en YAML pour ne rien perdre, puis reconnectez-vous.'
+            : `Enregistrement impossible : ${err.message}`,
+        ),
+      )
       .finally(() => setSaving(false));
   };
 
@@ -185,10 +201,20 @@ export function App() {
             <button className="band-btn" onClick={cycleTheme} aria-label={themeLabels[theme]} title={themeLabels[theme]}>
               <ThemeIcon size={17} aria-hidden />
             </button>
-            {!config.readOnly && !draft && (
+            {!config.readOnly && !draft && needsLogin && (
+              <a className="band-btn band-btn-text" href={loginUrl}>
+                <PencilLine size={16} aria-hidden /> Se connecter pour modifier
+              </a>
+            )}
+            {!config.readOnly && !draft && !needsLogin && (
               <button className="band-btn band-btn-text" onClick={startEdit}>
                 <PencilLine size={16} aria-hidden /> Modifier
               </button>
+            )}
+            {config.user && !draft && (
+              <a className="band-btn" href="/auth/logout" aria-label={`Se déconnecter (${config.user})`} title={`Connecté : ${config.user}. Se déconnecter`}>
+                <LogOut size={16} aria-hidden />
+              </a>
             )}
           </div>
         </div>

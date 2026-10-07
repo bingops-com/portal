@@ -42,28 +42,32 @@ type Summarizer interface {
 // SummaryLabels names the header readout of each ops type, used when its
 // provider fails and no result is available to summarize.
 var SummaryLabels = map[string]string{
-	"kubernetes": "Cluster",
-	"argocd":     "Argo CD",
-	"gatus":      "Endpoints",
-	"alerts":     "Alertes",
+	"kubernetes":   "Cluster",
+	"argocd":       "Argo CD",
+	"gatus":        "Endpoints",
+	"alerts":       "Alertes",
+	"certificates": "Certificats",
+	"backups":      "Sauvegardes",
 }
 
 var Registry = map[string]Provider{
-	"kubernetes": {TTL: 20 * time.Second, Fetch: fetchCluster},
-	"workloads":  {TTL: 20 * time.Second, Fetch: fetchWorkloads},
-	"events":     {TTL: 20 * time.Second, Fetch: fetchEvents},
-	"argocd":     {TTL: 20 * time.Second, Fetch: fetchArgo},
-	"gatus":      {TTL: 30 * time.Second, Fetch: fetchGatus},
-	"prometheus": {TTL: 30 * time.Second, Fetch: fetchPrometheus},
-	"alerts":     {TTL: 30 * time.Second, Fetch: fetchAlerts},
-	"bookmarks":  {TTL: 45 * time.Second, Fetch: fetchBookmarks},
-	"rss":        {TTL: 10 * time.Minute, Fetch: fetchRSS},
-	"videos":     {TTL: 15 * time.Minute, Fetch: fetchVideos},
-	"markets":    {TTL: 5 * time.Minute, Fetch: fetchMarkets},
-	"weather":    {TTL: 15 * time.Minute, Fetch: fetchWeather},
-	"calendar":   {TTL: 10 * time.Minute, Fetch: fetchCalendar},
-	"hackernews": {TTL: 10 * time.Minute, Fetch: fetchHackerNews},
-	"reddit":     {TTL: 10 * time.Minute, Fetch: fetchReddit},
+	"kubernetes":   {TTL: 20 * time.Second, Fetch: fetchCluster},
+	"workloads":    {TTL: 20 * time.Second, Fetch: fetchWorkloads},
+	"events":       {TTL: 20 * time.Second, Fetch: fetchEvents},
+	"argocd":       {TTL: 20 * time.Second, Fetch: fetchArgo},
+	"gatus":        {TTL: 30 * time.Second, Fetch: fetchGatus},
+	"prometheus":   {TTL: 30 * time.Second, Fetch: fetchPrometheus},
+	"alerts":       {TTL: 30 * time.Second, Fetch: fetchAlerts},
+	"certificates": {TTL: 5 * time.Minute, Fetch: fetchCertificates},
+	"backups":      {TTL: 2 * time.Minute, Fetch: fetchBackups},
+	"bookmarks":    {TTL: 45 * time.Second, Fetch: fetchBookmarks},
+	"rss":          {TTL: 10 * time.Minute, Fetch: fetchRSS},
+	"videos":       {TTL: 15 * time.Minute, Fetch: fetchVideos},
+	"markets":      {TTL: 5 * time.Minute, Fetch: fetchMarkets},
+	"weather":      {TTL: 15 * time.Minute, Fetch: fetchWeather},
+	"calendar":     {TTL: 10 * time.Minute, Fetch: fetchCalendar},
+	"hackernews":   {TTL: 10 * time.Minute, Fetch: fetchHackerNews},
+	"reddit":       {TTL: 10 * time.Minute, Fetch: fetchReddit},
 }
 
 // ClientOnly lists widget types rendered entirely in the browser.

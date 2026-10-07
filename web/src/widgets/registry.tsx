@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Options } from '../api';
-import { AlertsWidget, ArgoWidget, BookmarksWidget, ClusterWidget, EventsWidget, GatusWidget, PrometheusWidget, WorkloadsWidget, alertsBadge, argoBadge, clusterBadge, gatusBadge, workloadsBadge } from './ops';
+import { AlertsWidget, ArgoWidget, BackupsWidget, BookmarksWidget, CertificatesWidget, ClusterWidget, EventsWidget, GatusWidget, PrometheusWidget, WorkloadsWidget, alertsBadge, argoBadge, backupsBadge, certificatesBadge, clusterBadge, gatusBadge, workloadsBadge } from './ops';
 import { CalendarWidget, ClockWidget, MarketsWidget, PostsWidget, RssWidget, SearchWidget, VideosWidget, WeatherWidget, weatherBadge } from './info';
 
 export type Field = {
@@ -61,6 +61,7 @@ const list: WidgetMeta[] = [
     fields: [
       { key: 'url', label: 'Adresse de l’interface Argo CD', kind: 'text', placeholder: 'https://argocd.example.com', help: 'Sert uniquement aux liens vers chaque application.' },
       { key: 'namespace', label: 'Namespace des Applications', kind: 'text', help: 'Vide : tous les namespaces.' },
+      { key: 'ignore', label: 'Applications à ignorer', kind: 'lines', help: 'Un nom par ligne. Elles restent affichées mais ne comptent plus dans le bandeau.' },
       context,
       limit(),
     ],
@@ -95,6 +96,30 @@ const list: WidgetMeta[] = [
     defaults: { url: '' },
     fields: [promUrl, { key: 'ignore', label: 'Alertes à ignorer', kind: 'lines', help: 'Un nom par ligne. Watchdog et InfoInhibitor le sont déjà.' }],
     component: AlertsWidget, badge: alertsBadge,
+  },
+  {
+    type: 'certificates', label: 'Certificats', group: 'Ops', refresh: 300,
+    description: 'Certificats cert-manager : état d’émission et jours avant expiration.',
+    defaults: { warnDays: 14 },
+    fields: [
+      { key: 'warnDays', label: 'Alerte avant expiration (jours)', kind: 'number' },
+      { key: 'namespaces', label: 'Namespaces à afficher', kind: 'lines', help: 'Un par ligne. Vide : tous.' },
+      { key: 'exclude', label: 'Namespaces à masquer', kind: 'lines' },
+      context,
+      limit(),
+    ],
+    component: CertificatesWidget, badge: certificatesBadge,
+  },
+  {
+    type: 'backups', label: 'Sauvegardes', group: 'Ops', refresh: 120,
+    description: 'Dernière sauvegarde réussie des bases CloudNativePG et des CronJobs de sauvegarde.',
+    defaults: { maxAgeHours: 26, cronjobs: [] },
+    fields: [
+      { key: 'cronjobs', label: 'CronJobs de sauvegarde', kind: 'lines', help: 'Un par ligne, au format namespace/nom. Les clusters CloudNativePG sont détectés automatiquement.' },
+      { key: 'maxAgeHours', label: 'Âge maximal d’une sauvegarde (heures)', kind: 'number', help: 'Au-delà, la source passe en retard. 26 convient à une sauvegarde quotidienne.' },
+      context,
+    ],
+    component: BackupsWidget, badge: backupsBadge,
   },
   {
     type: 'bookmarks', label: 'Applications et liens', group: 'Outils', refresh: 60,

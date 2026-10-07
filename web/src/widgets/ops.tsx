@@ -162,8 +162,9 @@ export function EventsWidget({ data }: Props<Events>) {
 
 type Argo = {
   healthy: number;
+  tracked: number;
   url?: string;
-  apps: { name: string; project: string; sync: string; health: string; revision: string; path: string; syncedAt?: string; url?: string }[];
+  apps: { name: string; project: string; sync: string; health: string; revision: string; path: string; syncedAt?: string; url?: string; ignored?: boolean }[];
 };
 
 function argoState(a: Argo['apps'][number]): State {
@@ -179,7 +180,8 @@ export function ArgoWidget({ data, options }: Props<Argo>) {
       {(shown) => (
         <ul className="rows">
           {shown.map((a) => {
-            const state = argoState(a);
+            const state = a.ignored ? 'none' : argoState(a);
+            const label = a.sync !== 'Synced' ? a.sync : a.health === 'Healthy' ? 'Synced' : a.health;
             return (
               <li key={a.name} className="row">
                 <Mark state={state} />
@@ -193,7 +195,9 @@ export function ArgoWidget({ data, options }: Props<Argo>) {
                   )}
                   <span className="row-sub">{a.path || a.project}</span>
                 </div>
-                <span className={`tag tag-${state}`}>{state === 'ok' ? 'Synced' : a.sync !== 'Synced' ? a.sync : a.health}</span>
+                <span className={`tag tag-${state === 'none' ? 'unknown' : state}`} title={a.ignored ? 'Écart accepté : ignorée dans les compteurs' : undefined}>
+                  {label}
+                </span>
                 <span className="row-aside">
                   {a.revision}
                   {a.syncedAt && <small>{age(a.syncedAt)}</small>}
@@ -206,7 +210,7 @@ export function ArgoWidget({ data, options }: Props<Argo>) {
     </More>
   );
 }
-export const argoBadge = (d: Argo) => `${d.healthy}/${d.apps.length} à jour`;
+export const argoBadge = (d: Argo) => `${d.healthy}/${d.tracked} à jour`;
 
 // --- Gatus ---
 
@@ -340,3 +344,71 @@ export function BookmarksWidget({ data }: Props<Bookmarks>) {
     </>
   );
 }
+
+// --- Certificates ---
+
+type Certificates = {
+  valid: number;
+  warnDays: number;
+  certificates: { namespace: string; name: string; host: string; ready: boolean; reason?: string; notAfter?: string; state: State }[];
+};
+
+const daysLeft = (date?: string) => (date ? Math.floor((new Date(date).getTime() - Date.now()) / 86_400_000) : null);
+
+export function CertificatesWidget({ data, options }: Props<Certificates>) {
+  if (data.certificates.length === 0) return <Empty>Aucun certificat cert-manager dans les namespaces sélectionnés.</Empty>;
+  return (
+    <More items={data.certificates} limit={Number(options.limit) || 8}>
+      {(shown) => (
+        <ul className="rows">
+          {shown.map((c) => {
+            const days = daysLeft(c.notAfter);
+            return (
+              <li key={`${c.namespace}/${c.name}`} className="row">
+                <Mark state={c.state} label={c.state === 'ok' ? 'Valide' : c.state === 'warn' ? 'Expire bientôt' : 'À traiter'} />
+                <div className="row-main">
+                  <span className="row-title">{c.host || c.name}</span>
+                  <span className="row-sub">{c.namespace}</span>
+                </div>
+                <span className="row-aside">
+                  {!c.ready ? c.reason || 'Non émis' : days === null ? 'n/d' : days < 0 ? 'Expiré' : `${days} j`}
+                  {c.notAfter && <small>{new Date(c.notAfter).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</small>}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </More>
+  );
+}
+export const certificatesBadge = (d: Certificates) => `${d.valid}/${d.certificates.length} valides`;
+
+// --- Backups ---
+
+type Backups = {
+  healthy: number;
+  maxAgeHours: number;
+  backups: { kind: string; namespace: string; name: string; lastSuccess?: string; detail?: string; state: State }[];
+};
+
+export function BackupsWidget({ data }: Props<Backups>) {
+  return (
+    <ul className="rows">
+      {data.backups.map((b) => (
+        <li key={`${b.kind}/${b.namespace}/${b.name}`} className="row row-top">
+          <Mark state={b.state} label={b.state === 'ok' ? 'À jour' : b.state === 'unknown' ? 'En attente' : 'En retard'} />
+          <div className="row-main">
+            <span className="row-title">{b.name}</span>
+            <span className="row-sub">
+              {b.kind}, {b.namespace}
+            </span>
+            {b.detail && <span className="row-text">{b.detail}</span>}
+          </div>
+          <span className="row-aside">{b.lastSuccess ? age(b.lastSuccess) : 'jamais'}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+export const backupsBadge = (d: Backups) => `${d.healthy}/${d.backups.length} à jour`;

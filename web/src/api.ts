@@ -8,6 +8,9 @@ export type PortalConfig = {
   pages: Page[];
   source: 'yaml' | 'custom';
   readOnly: boolean;
+  // When true, editing needs a login; `user` is set once logged in.
+  loginRequired: boolean;
+  user?: string;
 };
 export type DataResponse<T> = { data?: T; error?: string; fetchedAt?: string; stale?: boolean };
 export type SummaryItem = { label: string; state: 'ok' | 'warn' | 'down' | 'unknown'; detail: string };

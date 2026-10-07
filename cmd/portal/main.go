@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bingops-com/portal/internal/auth"
 	"github.com/bingops-com/portal/internal/cache"
 	"github.com/bingops-com/portal/internal/config"
 	"github.com/bingops-com/portal/internal/providers"
@@ -40,6 +41,19 @@ func main() {
 		Assets:   web.Assets(),
 		ReadOnly: os.Getenv("PORTAL_READONLY") == "true",
 	}
+	if issuer := os.Getenv("PORTAL_OIDC_ISSUER"); issuer != "" {
+		login, err := auth.New(auth.Config{
+			Issuer:    issuer,
+			ClientID:  os.Getenv("PORTAL_OIDC_CLIENT_ID"),
+			Group:     os.Getenv("PORTAL_OIDC_GROUP"),
+			PublicURL: os.Getenv("PORTAL_PUBLIC_URL"),
+		}, env("PORTAL_DATA", "data"))
+		if err != nil {
+			slog.Error("invalid login configuration", "error", err)
+			os.Exit(1)
+		}
+		srv.Auth = login
+	}
 	httpServer := &http.Server{
 		Addr:              env("PORTAL_ADDR", ":3000"),
 		Handler:           srv.Handler(),
@@ -55,7 +69,7 @@ func main() {
 		httpServer.Shutdown(shutdown)
 	}()
 
-	slog.Info("portal listening", "addr", httpServer.Addr, "readOnly", srv.ReadOnly)
+	slog.Info("portal listening", "addr", httpServer.Addr, "readOnly", srv.ReadOnly, "loginRequired", srv.Auth != nil)
 	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server stopped", "error", err)
 		os.Exit(1)

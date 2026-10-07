@@ -9,6 +9,7 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -333,5 +334,158 @@ func TestArgoApplications(t *testing.T) {
 	}
 	if s := res.Summary(); s.State != "warn" {
 		t.Errorf("summary = %+v", s)
+	}
+}
+
+func custom(gvr schema.GroupVersionResource, kind, ns, name string, created time.Time, body map[string]any) *unstructured.Unstructured {
+	obj := map[string]any{
+		"apiVersion": gvr.Group + "/" + gvr.Version, "kind": kind,
+		"metadata": map[string]any{"name": name, "namespace": ns, "creationTimestamp": created.UTC().Format(time.RFC3339)},
+	}
+	for k, v := range body {
+		obj[k] = v
+	}
+	return &unstructured.Unstructured{Object: obj}
+}
+
+func platformDeps(typed []runtime.Object, objects ...runtime.Object) *Deps {
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
+		certificates: "CertificateList", cnpgClusters: "ClusterList", cnpgBackups: "BackupList", argoApps: "ApplicationList",
+	}, objects...)
+	k := NewKubeClients()
+	k.clients[""] = &kubeClient{name: "test", typed: fake.NewSimpleClientset(typed...), dynamic: dyn}
+	return &Deps{Kube: k}
+}
+
+func TestCertificatesStates(t *testing.T) {
+	now := time.Now()
+	cert := func(name, ready string, notAfter time.Time) *unstructured.Unstructured {
+		return custom(certificates, "Certificate", "web", name, now, map[string]any{
+			"spec": map[string]any{"dnsNames": []any{name + ".example"}},
+			"status": map[string]any{
+				"notAfter":   notAfter.UTC().Format(time.RFC3339),
+				"conditions": []any{map[string]any{"type": "Ready", "status": ready, "reason": "Failed"}},
+			},
+		})
+	}
+	deps := platformDeps(nil,
+		cert("fine", "True", now.Add(60*24*time.Hour)),
+		cert("soon", "True", now.Add(5*24*time.Hour)),
+		cert("broken", "False", now.Add(60*24*time.Hour)),
+		cert("expired", "True", now.Add(-time.Hour)))
+	out, err := fetchCertificates(context.Background(), deps, map[string]any{"warnDays": 14})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := out.(certificatesResult)
+	states := map[string]string{}
+	for _, c := range res.Certificates {
+		states[c.Name] = c.State
+	}
+	want := map[string]string{"fine": "ok", "soon": "warn", "broken": "down", "expired": "down"}
+	for name, state := range want {
+		if states[name] != state {
+			t.Errorf("%s = %q, want %q", name, states[name], state)
+		}
+	}
+	if res.Valid != 1 || res.Certificates[len(res.Certificates)-1].Name != "fine" || res.Certificates[0].State != "down" {
+		t.Errorf("valid=%d order=%+v", res.Valid, res.Certificates)
+	}
+	if s := res.Summary(); s.State != "down" || s.Detail != "1/4 valides" {
+		t.Errorf("summary = %+v", s)
+	}
+}
+
+func TestBackupsFromCloudNativePGAndCronJobs(t *testing.T) {
+	now := time.Now()
+	old := now.Add(-5 * 24 * time.Hour)
+	cluster := func(name string, created time.Time) *unstructured.Unstructured {
+		return custom(cnpgClusters, "Cluster", "db", name, created, nil)
+	}
+	run := func(name, cluster, phase string, created time.Time) *unstructured.Unstructured {
+		return custom(cnpgBackups, "Backup", "db", name, created, map[string]any{
+			"spec":   map[string]any{"cluster": map[string]any{"name": cluster}},
+			"status": map[string]any{"phase": phase, "stoppedAt": created.UTC().Format(time.RFC3339)},
+		})
+	}
+	success := metav1.NewTime(now.Add(-2 * time.Hour))
+	cron := func(name string, created time.Time, last *metav1.Time) *batchv1.CronJob {
+		return &batchv1.CronJob{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "game", Name: name, CreationTimestamp: metav1.NewTime(created)},
+			Status:     batchv1.CronJobStatus{LastSuccessfulTime: last},
+		}
+	}
+	deps := platformDeps(
+		[]runtime.Object{cron("recent", old, &success), cron("new", now.Add(-time.Hour), nil)},
+		cluster("healthy", old), cluster("stuck", old), cluster("fresh", now.Add(-time.Hour)),
+		run("healthy-1", "healthy", "completed", now.Add(-30*time.Hour)),
+		run("healthy-2", "healthy", "completed", now.Add(-3*time.Hour)),
+		run("stuck-1", "stuck", "started", now.Add(-60*time.Hour)),
+	)
+	out, err := fetchBackups(context.Background(), deps, map[string]any{
+		"cronjobs": []any{"game/recent", "game/new", "game/missing", "malformed"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := out.(backupsResult)
+	got := map[string]backup{}
+	for _, b := range res.Backups {
+		got[b.Name] = b
+	}
+	want := map[string]string{"healthy": "ok", "stuck": "down", "fresh": "unknown", "recent": "ok", "new": "unknown", "missing": "down"}
+	if len(got) != len(want) {
+		t.Fatalf("%d sources: %+v", len(got), res.Backups)
+	}
+	for name, state := range want {
+		if got[name].State != state {
+			t.Errorf("%s = %q (%s), want %q", name, got[name].State, got[name].Detail, state)
+		}
+	}
+	if !strings.Contains(got["stuck"].Detail, "started") {
+		t.Errorf("stuck detail = %q", got["stuck"].Detail)
+	}
+	if res.Healthy != 2 || res.Backups[0].State != "down" {
+		t.Errorf("healthy=%d first=%+v", res.Healthy, res.Backups[0])
+	}
+	if s := res.Summary(); s.State != "down" {
+		t.Errorf("summary = %+v", s)
+	}
+}
+
+func TestBackupsWithoutAnySourceIsAnError(t *testing.T) {
+	if _, err := fetchBackups(context.Background(), platformDeps(nil), nil); err == nil {
+		t.Fatal("expected an error")
+	}
+}
+
+func TestArgoIgnoredApplicationsDoNotCount(t *testing.T) {
+	app := func(name, sync string) *unstructured.Unstructured {
+		return custom(argoApps, "Application", "argocd", name, time.Now(), map[string]any{
+			"status": map[string]any{"sync": map[string]any{"status": sync}, "health": map[string]any{"status": "Healthy"}},
+		})
+	}
+	deps := platformDeps(nil, app("good", "Synced"), app("drift", "OutOfSync"))
+	out, err := fetchArgo(context.Background(), deps, map[string]any{"ignore": []any{"drift"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := out.(argoResult)
+	if res.Tracked != 1 || res.Healthy != 1 || len(res.Apps) != 2 {
+		t.Fatalf("%+v", res)
+	}
+	if s := res.Summary(); s.State != "ok" || s.Detail != "1/1 application à jour" {
+		t.Errorf("summary = %+v", s)
+	}
+}
+
+func TestAlertSummaryIgnoresInformationalAlerts(t *testing.T) {
+	info := alertsResult{Alerts: []alert{{Name: "Throttling", Severity: "info"}}}
+	if s := info.Summary(); s.State != "ok" {
+		t.Errorf("info only = %+v", s)
+	}
+	mixed := alertsResult{Alerts: []alert{{Severity: "info"}, {Severity: "warning"}}}
+	if s := mixed.Summary(); s.State != "warn" || s.Detail != "1 alerte active" {
+		t.Errorf("mixed = %+v", s)
 	}
 }

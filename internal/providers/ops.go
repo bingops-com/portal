@@ -401,17 +401,24 @@ type argoApp struct {
 	Path     string     `json:"path"`
 	SyncedAt *time.Time `json:"syncedAt,omitempty"`
 	URL      string     `json:"url,omitempty"`
+	// Ignored applications stay listed but do not affect counts or the
+	// header readout (known, accepted drift).
+	Ignored bool `json:"ignored,omitempty"`
 }
 
 type argoResult struct {
 	Apps    []argoApp `json:"apps"`
 	Healthy int       `json:"healthy"`
+	Tracked int       `json:"tracked"`
 	URL     string    `json:"url,omitempty"`
 }
 
 func (r argoResult) Summary() SummaryItem {
-	it := SummaryItem{Label: "Argo CD", State: "ok", Detail: fmt.Sprintf("%d/%s", r.Healthy, plural(len(r.Apps), "application à jour", "applications à jour"))}
+	it := SummaryItem{Label: "Argo CD", State: "ok", Detail: fmt.Sprintf("%d/%s", r.Healthy, plural(r.Tracked, "application à jour", "applications à jour"))}
 	for _, a := range r.Apps {
+		if a.Ignored {
+			continue
+		}
 		if a.Health == "Degraded" || a.Health == "Missing" {
 			it.State = "down"
 			break
@@ -425,12 +432,17 @@ func (r argoResult) Summary() SummaryItem {
 
 func fetchArgo(ctx context.Context, d *Deps, opts map[string]any) (any, error) {
 	var o struct {
-		Context   string `json:"context"`
-		Namespace string `json:"namespace"`
-		URL       string `json:"url"`
+		Context   string   `json:"context"`
+		Namespace string   `json:"namespace"`
+		URL       string   `json:"url"`
+		Ignore    []string `json:"ignore"`
 	}
 	if err := decode(opts, &o); err != nil {
 		return nil, err
+	}
+	ignored := map[string]bool{}
+	for _, n := range o.Ignore {
+		ignored[n] = true
 	}
 	c, err := d.Kube.get(o.Context)
 	if err != nil {
@@ -470,14 +482,18 @@ func fetchArgo(ctx context.Context, d *Deps, opts map[string]any) (any, error) {
 		if res.URL != "" {
 			a.URL = res.URL + "/applications/" + url.PathEscape(u.GetNamespace()) + "/" + url.PathEscape(a.Name)
 		}
-		if a.Sync == "Synced" && a.Health == "Healthy" {
-			res.Healthy++
+		a.Ignored = ignored[a.Name]
+		if !a.Ignored {
+			res.Tracked++
+			if a.Sync == "Synced" && a.Health == "Healthy" {
+				res.Healthy++
+			}
 		}
 		res.Apps = append(res.Apps, a)
 	}
 	sort.SliceStable(res.Apps, func(a, b int) bool {
-		ha := res.Apps[a].Sync == "Synced" && res.Apps[a].Health == "Healthy"
-		hb := res.Apps[b].Sync == "Synced" && res.Apps[b].Health == "Healthy"
+		ha := res.Apps[a].Ignored || (res.Apps[a].Sync == "Synced" && res.Apps[a].Health == "Healthy")
+		hb := res.Apps[b].Ignored || (res.Apps[b].Sync == "Synced" && res.Apps[b].Health == "Healthy")
 		if ha != hb {
 			return !ha
 		}
@@ -706,16 +722,25 @@ type alertsResult struct {
 }
 
 func (r alertsResult) Summary() SummaryItem {
-	if len(r.Alerts) == 0 {
-		return SummaryItem{Label: "Alertes", State: "ok", Detail: "aucune alerte active"}
-	}
-	it := SummaryItem{Label: "Alertes", State: "warn", Detail: plural(len(r.Alerts), "alerte active", "alertes actives")}
+	// Informational alerts are listed in the widget but never turn the
+	// header readout orange.
+	actionable, critical := 0, false
 	for _, a := range r.Alerts {
-		if a.Severity == "critical" {
-			it.State = "down"
+		if a.Severity == "info" || a.Severity == "none" {
+			continue
 		}
+		actionable++
+		critical = critical || a.Severity == "critical"
 	}
-	return it
+	switch {
+	case len(r.Alerts) == 0:
+		return SummaryItem{Label: "Alertes", State: "ok", Detail: "aucune alerte active"}
+	case actionable == 0:
+		return SummaryItem{Label: "Alertes", State: "ok", Detail: plural(len(r.Alerts), "alerte d'information", "alertes d'information")}
+	case critical:
+		return SummaryItem{Label: "Alertes", State: "down", Detail: plural(actionable, "alerte active", "alertes actives")}
+	}
+	return SummaryItem{Label: "Alertes", State: "warn", Detail: plural(actionable, "alerte active", "alertes actives")}
 }
 
 var severityRank = map[string]int{"critical": 0, "warning": 1, "info": 2}
