@@ -81,31 +81,35 @@ export function useFlip<T extends HTMLElement>() {
 // True inside a widget opened in large: lists then show every row.
 export const ExpandedContext = createContext(false);
 
-// Small line drawings, in the portal's blue, for moments without data.
+// Small line drawings from the sea, in the portal's blue, for moments without
+// data: a calm sea when the absence is good news, a spyglass with nothing in
+// sight, a compass that lost its bearing when a source cannot be reached.
 export function Art({ kind }: { kind: 'empty' | 'clear' | 'offline' }) {
   return (
     <svg className={`art art-${kind}`} viewBox="0 0 64 64" aria-hidden>
       {kind === 'clear' && (
         <>
-          <path d="M32 8l18 7v13c0 12-7.5 21-18 27-10.5-6-18-15-18-27V15z" className="art-fill" />
-          <path d="M32 8l18 7v13c0 12-7.5 21-18 27-10.5-6-18-15-18-27V15z" />
-          <path d="M23.5 31.5l6 6 11.5-12.5" className="art-accent" />
+          <circle cx="32" cy="27" r="11" className="art-fill" />
+          <circle cx="32" cy="27" r="11" />
+          <path d="M32 7v3.5M14.5 14.5l2.5 2.5M49.5 14.5 47 17M9 30h3.5M51.5 30H55" />
+          <path d="M7 45q6.25-5 12.5 0t12.5 0 12.5 0 12.5 0M13 54q6.33-5 12.67 0t12.660 0 12.67 0" className="art-accent" />
         </>
       )}
       {kind === 'empty' && (
-        <>
-          <path d="M10 36l8-20h28l8 20v14a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4z" className="art-fill" />
-          <path d="M10 36l8-20h28l8 20v14a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4z" />
-          <path d="M10 36h13a9 9 0 0 0 18 0h13" />
-          <path d="M26 24h12" className="art-accent" />
-        </>
+        <g transform="rotate(-28 32 32)">
+          <rect x="6" y="25" width="24" height="14" rx="3" className="art-fill" />
+          <rect x="6" y="25" width="24" height="14" rx="3" />
+          <path d="M30 27.5h15v9H30M45 29.5h11v5H45" />
+          <path d="M12 25v14" className="art-accent" />
+        </g>
       )}
       {kind === 'offline' && (
         <>
           <circle cx="32" cy="32" r="22" className="art-fill" />
-          <path d="M14 26a26 26 0 0 1 36 0M21 34a16 16 0 0 1 22 0M27.5 41.5a7 7 0 0 1 9 0" />
-          <path d="M14 50L50 14" className="art-accent" />
-          <circle cx="32" cy="48" r="1.5" className="art-dot" />
+          <circle cx="32" cy="32" r="22" />
+          <path d="M32 17l5 15-5 15-5-15z" />
+          <path d="M15 49L49 15" className="art-accent" />
+          <circle cx="32" cy="32" r="1.5" className="art-dot" />
         </>
       )}
     </svg>
