@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { BookOpen, Boxes, Command as CommandIcon, Download, Gamepad2, Gauge, History, House, Lock, LogOut, Monitor, Newspaper, Server, ShieldCheck, Sunrise, User, Wallet, Wrench, X as Close, type LucideIcon, Moon, PencilLine, Plus, RotateCcw, Sun, Trash2 } from 'lucide-react';
+import { Anchor, BookOpen, Boxes, Command as CommandIcon, Compass, Download, Gamepad2, Gauge, History, House, Lock, LogOut, Monitor, Newspaper, Server, ShieldCheck, Sunrise, User, Wallet, Wrench, X as Close, type LucideIcon, Moon, PencilLine, Plus, RotateCcw, Sailboat, ShipWheel, Sun, Telescope, Trash2 } from 'lucide-react';
 import { stringify } from 'yaml';
 import { api, type Page, type PortalConfig, type SummaryItem, type Widget } from './api';
 import { ExpandedContext, Mark } from './components/bits';
@@ -155,6 +155,7 @@ export const pageIcons: Record<string, [LucideIcon, string]> = {
   home: [House, 'Accueil'], boxes: [Boxes, 'Cluster'], shield: [ShieldCheck, 'Bouclier'], history: [History, 'Historique'], newspaper: [Newspaper, 'Journal'],
   user: [User, 'Personne'], gauge: [Gauge, 'Jauge'], server: [Server, 'Serveur'], lock: [Lock, 'Cadenas'], wrench: [Wrench, 'Outil'],
   gamepad: [Gamepad2, 'Manette'], wallet: [Wallet, 'Portefeuille'], book: [BookOpen, 'Livre'],
+  compass: [Compass, 'Boussole'], helm: [ShipWheel, 'Gouvernail'], anchor: [Anchor, 'Ancre'], spyglass: [Telescope, 'Longue-vue'], sailboat: [Sailboat, 'Voilier'],
 };
 
 function Logo() {
@@ -163,6 +164,32 @@ function Logo() {
       <rect width="64" height="64" rx="16" className="logo-tile" />
       <path d="M20 16v26a6 6 0 0 0 6 6h12" className="logo-trace" />
       <circle cx="46" cy="48" r="5.5" className="logo-node" />
+    </svg>
+  );
+}
+
+// The lab's cat, eye patch included, looking through a porthole.
+function Mascot() {
+  return (
+    <svg className="mascot" viewBox="0 0 64 64" aria-hidden>
+      <clipPath id="porthole">
+        <circle cx="32" cy="32" r="27" />
+      </clipPath>
+      <circle cx="32" cy="32" r="27" className="mascot-sea" />
+      <g clipPath="url(#porthole)">
+        <g transform="translate(-7.6 10) scale(0.66)">
+          <path d="M32 110C27 82 40 56 60 56s33 26 28 54z" className="mascot-fur" />
+          <path d="M40 31 42 8l15 13z" className="mascot-fur mascot-ear-still" />
+          <path d="M80 31 78 8 63 21z" className="mascot-fur mascot-ear" />
+          <ellipse cx="60" cy="40" rx="25" ry="21" className="mascot-fur" />
+          <ellipse cx="50" cy="40" rx="3.4" ry="4.6" className="mascot-ink mascot-eye" />
+          <path d="M39.5 27.5 84.5 44" className="mascot-strap" />
+          <path d="M63 34.5h14v6a7 7 0 0 1-14 0z" className="mascot-ink mascot-patch" />
+          <path d="M57.5 47h5L60 50z" className="mascot-ink" />
+          <path d="M43 57q17 9 34 0" className="mascot-collar" />
+        </g>
+      </g>
+      <circle cx="32" cy="32" r="28.5" className="mascot-rim" />
     </svg>
   );
 }
@@ -788,7 +815,8 @@ export function App() {
       </main>
 
       <footer className="foot">
-        <span>
+        <span className="foot-brand">
+          <Mascot />
           {config.title} Portal{version ? `, version ${version}` : ''}
         </span>
         <span>{!alive ? 'Contact perdu avec le serveur' : readAt ? `Dernier relevé à ${clockTime(readAt)}` : ''}</span>

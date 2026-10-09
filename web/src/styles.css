@@ -2680,6 +2680,113 @@ body {
   display: none;
 }
 
+/* --- Sea chart and mascot ---------------------------------------------------
+   The band is the sea: a chart grid and a compass rose lie under the
+   navigation, faint enough to be found only when looked for. The cat in the
+   footer porthole wears the eye patch of the lab.bingo identity. */
+
+.band {
+  position: relative;
+  isolation: isolate;
+}
+.band::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.11;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' fill='none' stroke='%23fff'%3E%3Ccircle cx='100' cy='100' r='72' stroke-width='1.5'/%3E%3Ccircle cx='100' cy='100' r='60' stroke-dasharray='1 5.28'/%3E%3Cpath d='M100 4v192M4 100h192M32 32l136 136M168 32 32 168' stroke-width='.6'/%3E%3Cpath d='M100 24l10 66 66 10-66 10-10 66-10-66-66-10 66-10z' fill='%23fff' stroke='none'/%3E%3C/svg%3E")
+      right -3.5rem center / 15rem 15rem no-repeat,
+    radial-gradient(#fff 1px, transparent 1.6px) 0 0 / 1.75rem 1.75rem;
+}
+@media (max-width: 45rem) {
+  .band::before {
+    background-size: 10rem 10rem, 1.75rem 1.75rem;
+  }
+}
+
+.foot-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.mascot {
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+.mascot-sea {
+  fill: var(--band);
+}
+.mascot-rim {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 3;
+}
+.mascot-fur {
+  fill: #fff;
+  stroke: #fff;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+.mascot-ink {
+  fill: #0b2a94;
+}
+.mascot-patch {
+  stroke: #0b2a94;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.mascot-strap {
+  fill: none;
+  stroke: #0b2a94;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.mascot-collar {
+  fill: none;
+  stroke: #8af2bf;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.mascot-eye {
+  transform-origin: 50px 40px;
+  animation: mascot-blink 4.8s linear infinite;
+}
+.mascot-ear {
+  transform-origin: 72px 24px;
+  animation: mascot-ear 5.5s ease-in-out infinite;
+}
+@keyframes mascot-blink {
+  0%,
+  93%,
+  100% {
+    transform: scaleY(1);
+  }
+  96.5% {
+    transform: scaleY(0.08);
+  }
+}
+@keyframes mascot-ear {
+  0%,
+  80%,
+  88%,
+  100% {
+    transform: rotate(0deg);
+  }
+  84% {
+    transform: rotate(14deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-eye,
+  .mascot-ear {
+    animation: none;
+  }
+}
+
 /* ======================================================================
    Phone and small tablet. The header becomes three rows: brand and tools,
    a strip of tabs that scrolls sideways, then the readouts.
