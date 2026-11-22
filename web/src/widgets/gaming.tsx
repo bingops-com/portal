@@ -33,7 +33,7 @@ export function GameRoomsWidget(){
   return <div className="games-management">
     <p className="games-intro">Démarre une partie, retrouve ton monde, puis mets le serveur en veille.</p>
     <div className="games-sync"><GitCommitHorizontal size={16} aria-hidden/><span>{synced?'Git synchronisé avec le cluster':'Synchronisation Git en attente'}</span><button className="retry" onClick={()=>void load()} disabled={busy} aria-label="Actualiser les serveurs"><RefreshCw size={14} aria-hidden/></button></div>
-    {!data.canWrite&&<p className="note">Les commandes seront disponibles après configuration de l’accès GitHub du portail.</p>}
+    {!data.canWrite&&<p className="note">{data.desired.workflowURL?<a href={data.desired.workflowURL} target="_blank" rel="noreferrer">Démarrer ou mettre en veille sur GitHub <ExternalLink size={13} aria-hidden/></a>:'Les commandes seront disponibles après configuration de l’accès GitHub du portail.'}</p>}
     {data.observationError&&<p className="problem" role="status">{data.observationError}. L’état affiché dans Git reste disponible.</p>}
     <div className="games-list">{data.desired.rooms.map(room=>{
       const live=data.observed.rooms?.[room.name];

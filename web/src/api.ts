@@ -16,7 +16,7 @@ export type DataResponse<T> = { data?: T; error?: string; fetchedAt?: string; st
 export type SummaryItem = { label: string; state: 'ok' | 'warn' | 'down' | 'unknown'; detail: string; type?: string; since?: string };
 export type GameChange = { expectedRevision: string; requestId: string; state?: 'Running' | 'Suspended'; version?: string };
 export type GameResult = { kind: 'preview' | 'commit' | 'pull_request' | 'unchanged'; revision: string; url?: string; diff: string };
-export type GamesResponse = { desired: { revision: string; writable: boolean; versions: string[]; rooms: { name: string; state: 'Running' | 'Suspended'; version: string; endpoint?: string }[] }; observed: { rooms: Record<string,{ generation: number; observedGeneration: number; state: string; version: string; phase: string; message?: string; backupVerified: boolean }>; argoRevision: string; argoSync: string }; canWrite: boolean; observationError?: string };
+export type GamesResponse = { desired: { revision: string; writable: boolean; workflowURL?: string; versions: string[]; rooms: { name: string; state: 'Running' | 'Suspended'; version: string; endpoint?: string }[] }; observed: { rooms: Record<string,{ generation: number; observedGeneration: number; state: string; version: string; phase: string; message?: string; backupVerified: boolean }>; argoRevision: string; argoSync: string }; canWrite: boolean; observationError?: string };
 
 export class APIError extends Error { constructor(message: string, public status: number) { super(message); } }
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

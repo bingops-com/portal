@@ -156,6 +156,21 @@ func TestPreviewIsReadOnly(t *testing.T) {
 		t.Fatal("preview wrote Git")
 	}
 }
+
+func TestReadOnlyWorkflowUsesTrustedConfiguration(t *testing.T) {
+	f := newFixture(t)
+	f.service.GitHub.Tokens = nil
+	f.service.Config.StateWorkflow = "game-room-state.yml"
+	view, err := f.service.Read(context.Background())
+	if err != nil || view.Writable || view.WorkflowURL != "https://github.com/example/lab/actions/workflows/game-room-state.yml" {
+		t.Fatalf("unexpected read-only workflow: %#v %v", view, err)
+	}
+	cfg := f.service.Config
+	cfg.StateWorkflow = "../../other.yml"
+	if _, err := New(cfg, f.service.GitHub); err == nil {
+		t.Fatal("invalid workflow path accepted")
+	}
+}
 func TestConflictsNeverForcePush(t *testing.T) {
 	for _, race := range []bool{false, true} {
 		t.Run(map[bool]string{false: "stale-view", true: "concurrent-write"}[race], func(t *testing.T) {

@@ -34,6 +34,7 @@ type Config struct {
 	ArgoNamespace   string   `json:"argoNamespace"`
 	ArgoApplication string   `json:"argoApplication"`
 	EndpointHost    string   `json:"endpointHost"`
+	StateWorkflow   string   `json:"stateWorkflow,omitempty"`
 }
 
 type Room struct {
@@ -52,10 +53,11 @@ type Observed struct {
 	BackupVerified     bool   `json:"backupVerified"`
 }
 type Snapshot struct {
-	Revision string   `json:"revision"`
-	Rooms    []Room   `json:"rooms"`
-	Versions []string `json:"versions"`
-	Writable bool     `json:"writable"`
+	Revision    string   `json:"revision"`
+	Rooms       []Room   `json:"rooms"`
+	Versions    []string `json:"versions"`
+	Writable    bool     `json:"writable"`
+	WorkflowURL string   `json:"workflowURL,omitempty"`
 }
 type Change struct {
 	ExpectedRevision string `json:"expectedRevision"`
@@ -83,6 +85,9 @@ func New(cfg Config, g *GitHub) (*Service, error) {
 		return nil, errors.New("configuration des GameRooms invalide")
 	}
 	seen := map[string]bool{}
+	if cfg.StateWorkflow != "" && !regexp.MustCompile(`^[A-Za-z0-9_-]+\.ya?ml$`).MatchString(cfg.StateWorkflow) {
+		return nil, errors.New("workflow de commande invalide")
+	}
 	for _, name := range cfg.Rooms {
 		if !namePattern.MatchString(name) || seen[name] {
 			return nil, errors.New("liste des GameRooms invalide")
@@ -276,6 +281,9 @@ func (s *Service) Read(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	out := Snapshot{Revision: rev, Rooms: []Room{}, Writable: s.GitHub.Tokens != nil}
+	if s.Config.StateWorkflow != "" {
+		out.WorkflowURL = "https://github.com/" + s.Config.Repository + "/actions/workflows/" + s.Config.StateWorkflow
+	}
 	out.Versions, err = s.versions(ctx, rev)
 	if err != nil {
 		return Snapshot{}, err

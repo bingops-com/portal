@@ -38,6 +38,13 @@ Les volumes, dépôts de sauvegarde, secrets et ports ne sont pas éditables dan
 ce widget. Le backend refuse les fichiers contenant plusieurs documents,
 des alias YAML ou des clés dupliquées et vérifie le périmètre du GameRoom.
 
+Si `stateWorkflow` nomme un workflow YAML, le mode sans App propose un lien
+vers son formulaire GitHub pour démarrer/mettre en veille. Le propriétaire
+s’authentifie sur GitHub ; le workflow valide le périmètre et écrit son commit
+avec son jeton de dépôt. Le portail suit ensuite l’état via Argo/Kubernetes.
+Aucun jeton GitHub supplémentaire n’est nécessaire pour ce parcours. L’App
+reste nécessaire pour les boutons intégrés et les PR de version du portail.
+
 ## GitHub App et secrets
 
 Sans GitHub App, le backend peut lire un dépôt public mais les commandes sont

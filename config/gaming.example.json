@@ -8,5 +8,6 @@
   "rooms": ["zomboid-example"],
   "argoNamespace": "argocd-system",
   "argoApplication": "game-operations",
-  "endpointHost": "games.example.invalid"
+  "endpointHost": "games.example.invalid",
+  "stateWorkflow": "game-room-state.yml"
 }

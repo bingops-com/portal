@@ -45,3 +45,13 @@ test('a stale Git view requires a new preview',async({page})=>{
   await expect(page.getByRole('alert')).toContainText('Git a changé');
   await expect(page.getByLabel('Vérifier le changement Git')).toHaveCount(0);
 });
+
+test('read-only portal links to the owner GitHub form without sending a command',async({page})=>{
+  const state={...snapshot(),canWrite:false};
+  Object.assign(state.desired,{writable:false,workflowURL:'https://github.com/example/lab/actions/workflows/game-room-state.yml'});
+  await page.route('**/api/games**',async route=>{expect(route.request().method()).toBe('GET');await route.fulfill({json:state});});
+  await page.request.put('/api/layout',{data:{pages:[{name:'Jeux',slug:'jeux',columns:[{size:'full',widgets:[{id:'games',type:'gamerooms'}]}]}]}});
+  await page.goto('/jeux');
+  await expect(page.getByRole('link',{name:'Démarrer ou mettre en veille sur GitHub'})).toHaveAttribute('href','https://github.com/example/lab/actions/workflows/game-room-state.yml');
+  await expect(page.getByRole('button',{name:'Démarrer',exact:true})).toBeDisabled();
+});
