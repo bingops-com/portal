@@ -242,6 +242,26 @@ func TestNoCredentialsMeansReadOnly(t *testing.T) {
 		t.Fatal("missing credentials did not fail closed")
 	}
 }
+
+func TestReadCoalescesGitRequestsAndACommandInvalidatesIt(t *testing.T) {
+	f := newFixture(t)
+	first, err := f.service.Read(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := len(f.methods)
+	second, err := f.service.Read(context.Background())
+	if err != nil || len(f.methods) != count || second.Revision != first.Revision {
+		t.Fatal("Git snapshot was not cached")
+	}
+	if _, err = f.service.Apply(context.Background(), "one", "owner", request()); err != nil {
+		t.Fatal(err)
+	}
+	third, err := f.service.Read(context.Background())
+	if err != nil || third.Revision != newSHA {
+		t.Fatal("accepted command left a stale Git cache")
+	}
+}
 func TestGitHubErrorsDoNotExposeResponseBodies(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)

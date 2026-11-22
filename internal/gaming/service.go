@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -68,8 +70,11 @@ type Result struct {
 	Diff     string `json:"diff"`
 }
 type Service struct {
-	Config Config
-	GitHub *GitHub
+	Config     Config
+	GitHub     *GitHub
+	mu         sync.Mutex
+	cached     *Snapshot
+	cacheUntil time.Time
 }
 
 func New(cfg Config, g *GitHub) (*Service, error) {
@@ -261,6 +266,11 @@ func (s *Service) versions(ctx context.Context, rev string) ([]string, error) {
 	return nil, errors.New("catalogue de versions absent")
 }
 func (s *Service) Read(ctx context.Context) (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cached != nil && time.Now().Before(s.cacheUntil) {
+		return *s.cached, nil
+	}
 	rev, err := s.head(ctx)
 	if err != nil {
 		return Snapshot{}, err
@@ -277,8 +287,16 @@ func (s *Service) Read(ctx context.Context) (Snapshot, error) {
 		}
 		out.Rooms = append(out.Rooms, room)
 	}
+	ttl := 30 * time.Second
+	if s.GitHub.Tokens == nil {
+		ttl = 5 * time.Minute
+	}
+	s.cached = &out
+	s.cacheUntil = time.Now().Add(ttl)
 	return out, nil
 }
+
+func (s *Service) invalidate() { s.mu.Lock(); defer s.mu.Unlock(); s.cached = nil }
 
 func (s *Service) prepare(ctx context.Context, name string, change Change) (string, Room, string, error) {
 	if len(change.Version) > 128 || strings.ContainsAny(change.Version, "\r\n") {
@@ -334,6 +352,7 @@ func (s *Service) Apply(ctx context.Context, name, actor string, change Change) 
 	if s.GitHub.Tokens == nil {
 		return Result{}, ErrCredentials
 	}
+	defer s.invalidate()
 	if strings.ContainsAny(actor, "\r\n") || actor == "" || len(actor) > 200 {
 		return Result{}, errors.New("identité de l’auteur invalide")
 	}
