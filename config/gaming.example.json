@@ -1,0 +1,13 @@
+{
+  "repository": "example/game-config",
+  "branch": "game-operations",
+  "directory": "rooms",
+  "catalogue": "operator/config.yaml",
+  "namespace": "games",
+  "gateway": "shared-test",
+  "rooms": ["zomboid-example"],
+  "argoNamespace": "argocd-system",
+  "argoApplication": "game-operations",
+  "endpointHost": "games.example.invalid",
+  "stateWorkflow": "game-room-state.yml"
+}

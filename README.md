@@ -8,6 +8,12 @@ réorganisent dans le navigateur.
 
 Un seul binaire Go sert l'API et l'interface React embarquée.
 
+Le widget `gamerooms` permet de gérer l'état des serveurs de jeu par commits
+Git et de proposer leur version par PR, avec suivi Kubernetes/Argo CD.
+L'activation exige une configuration OIDC et GitHub explicite ; voir
+[`docs/gaming.md`](docs/gaming.md). Cette intégration est préparée sur une
+branche de travail et n'a pas été activée dans le portail de production.
+
 ## Démarrer en local
 
 ```sh
@@ -208,9 +214,10 @@ déployée vivent dans `bingops-com/labops` :
 `config/portal.yaml` n'est ici qu'un exemple pour le développement local ;
 l'image n'embarque aucune configuration.
 
-Chaque push sur `master` qui touche au code déclenche
-`.github/workflows/trigger-rebuild.yml`, qui demande à `labops` de
-reconstruire et publier l'image (secret `REPO_INFRA_TOKEN`, comme pour
-`www.bingops.com`). Une pull request déclenche le même build sans publication.
-Pour déployer l'image obtenue, reportez son tag `sha-…` dans le Deployment de
-`labops` ; voir `docker/portal/README.md`.
+La CI de ce dépôt vérifie le code et l’interface, sans secret de publication.
+Le workflow `portal-release.yml` de LabOps construit une révision source complète
+épinglée dans `docker/portal/source.txt`, avec son propre `GITHUB_TOKEN` pour
+GHCR. Reporter ensuite le digest obtenu dans le Deployment GitOps.
+L’ancien déclenchement entre dépôts par `REPO_INFRA_TOKEN` a été retiré : il
+échouait avec un jeton invalide et n’est plus un prérequis de reconstruction.
+Voir `labops/docker/portal/README.md` pour la publication.

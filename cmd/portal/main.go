@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -15,6 +17,7 @@ import (
 	"github.com/bingops-com/portal/internal/auth"
 	"github.com/bingops-com/portal/internal/cache"
 	"github.com/bingops-com/portal/internal/config"
+	"github.com/bingops-com/portal/internal/gaming"
 	"github.com/bingops-com/portal/internal/providers"
 	"github.com/bingops-com/portal/internal/server"
 	"github.com/bingops-com/portal/web"
@@ -60,6 +63,43 @@ func main() {
 			os.Exit(1)
 		}
 		srv.Auth = login
+	}
+	if filename := os.Getenv("PORTAL_GAMES_CONFIG"); filename != "" {
+		if srv.Auth == nil || os.Getenv("PORTAL_OIDC_GROUP") == "" {
+			slog.Error("game management requires OIDC and an explicit owner group")
+			os.Exit(1)
+		}
+		data, err := os.ReadFile(filename)
+		var cfg gaming.Config
+		if err != nil || json.Unmarshal(data, &cfg) != nil {
+			slog.Error("invalid game management configuration")
+			os.Exit(1)
+		}
+		var tokens gaming.TokenSource
+		if keyFile := os.Getenv("PORTAL_GAMES_GITHUB_KEY_FILE"); keyFile != "" {
+			key, err := os.ReadFile(keyFile)
+			appID, _ := strconv.ParseInt(os.Getenv("PORTAL_GAMES_GITHUB_APP_ID"), 10, 64)
+			installationID, _ := strconv.ParseInt(os.Getenv("PORTAL_GAMES_GITHUB_INSTALLATION_ID"), 10, 64)
+			if err != nil {
+				slog.Error("cannot read GitHub App key")
+				os.Exit(1)
+			}
+			parts := strings.Split(cfg.Repository, "/")
+			if len(parts) != 2 {
+				slog.Error("invalid game repository")
+				os.Exit(1)
+			}
+			tokens, err = gaming.NewAppTokens(appID, installationID, parts[1], key)
+			if err != nil {
+				slog.Error("invalid GitHub App configuration")
+				os.Exit(1)
+			}
+		}
+		srv.Games, err = gaming.New(cfg, gaming.NewGitHub(tokens))
+		if err != nil {
+			slog.Error("invalid GameRoom configuration")
+			os.Exit(1)
+		}
 	}
 	httpServer := &http.Server{
 		Addr:              env("PORTAL_ADDR", ":3000"),
