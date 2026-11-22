@@ -1,6 +1,27 @@
 /* LabOps portal. Blue ink on white paper; one saturated cobalt band carries
    navigation and live health, everything below it stays quiet. */
 
+.games-intro { color: var(--ink-soft); max-width: 60ch; }
+.games-sync,.game-room-title,.game-confirm-actions,.game-room-controls,.games-empty { display:flex; align-items:center; gap:0.7rem; flex-wrap:wrap; }
+.games-sync { margin-block:1rem; color:var(--ink-soft); }
+.game-room { padding-block:1.25rem; border-top:1px solid var(--line); }
+.game-room-title { justify-content:space-between; }
+.game-room-title h3 { font-family:var(--display); font-size:1.15rem; overflow-wrap:anywhere; }
+.game-room-meta { margin-block:0.3rem 1rem; color:var(--ink-soft); overflow-wrap:anywhere; }
+.game-room-facts { display:flex; flex-wrap:wrap; gap:0.8rem 2rem; }
+.game-room-facts dt { color:var(--ink-soft); font-size:0.875rem; }
+.game-room-facts dd { margin:0.25rem 0 0; }
+.game-room-controls { margin-top:1rem; align-items:end; }
+.game-room-controls label { display:grid; gap:0.25rem; min-width:0; max-width:100%; color:var(--ink-soft); font-size:0.875rem; }
+.game-room-controls select { max-width:100%; min-height:2.5rem; }
+.game-room-controls button,.game-confirm-actions button { display:inline-flex; align-items:center; gap:0.4rem; min-height:2.5rem; }
+.game-connect,.game-result { margin-top:1rem; }
+.game-result a { display:inline-flex; align-items:center; gap:0.3rem; }
+.game-confirm { border-left:3px solid var(--cobalt); padding:1rem; margin-block:1rem; background:var(--tint); }
+.game-confirm p { margin-block:0.75rem; max-width:65ch; }
+.game-confirm pre { white-space:pre-wrap; overflow-wrap:anywhere; margin-block:1rem; font-size:0.875rem; }
+@media(max-width:480px){.game-room-controls{align-items:stretch;}.game-room-controls label{width:100%;}.game-room-controls button,.game-confirm-actions button{min-height:44px;}}
+
 :root {
   --ground: #eef2fb;
   --surface: #ffffff;

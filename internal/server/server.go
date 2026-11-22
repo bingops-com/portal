@@ -19,6 +19,7 @@ import (
 	"github.com/bingops-com/portal/internal/auth"
 	"github.com/bingops-com/portal/internal/cache"
 	"github.com/bingops-com/portal/internal/config"
+	"github.com/bingops-com/portal/internal/gaming"
 	"github.com/bingops-com/portal/internal/providers"
 )
 
@@ -31,7 +32,8 @@ type Server struct {
 	Assets   fs.FS
 	ReadOnly bool
 	// Auth, when set, requires a login for every write. Reads stay open.
-	Auth *auth.Auth
+	Auth  *auth.Auth
+	Games *gaming.Service
 
 	// StatePath, when set, persists readout states across restarts.
 	StatePath string
@@ -90,6 +92,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/detail/{id}", s.getDetail)
 	mux.HandleFunc("POST /api/preview", s.guard(s.postPreview))
 	mux.HandleFunc("GET /api/summary", s.getSummary)
+	mux.HandleFunc("GET /api/games", s.gamesGuard(s.getGames))
+	mux.HandleFunc("POST /api/games/{name}/preview", s.gamesGuard(s.guard(s.changeGame(true))))
+	mux.HandleFunc("POST /api/games/{name}/changes", s.gamesGuard(s.guard(s.changeGame(false))))
 	if s.Auth != nil {
 		mux.HandleFunc("GET /auth/login", s.Auth.Login)
 		mux.HandleFunc("GET /auth/callback", s.Auth.Callback)

@@ -8,6 +8,12 @@ réorganisent dans le navigateur.
 
 Un seul binaire Go sert l'API et l'interface React embarquée.
 
+Le widget `gamerooms` permet de gérer l'état des serveurs de jeu par commits
+Git et de proposer leur version par PR, avec suivi Kubernetes/Argo CD.
+L'activation exige une configuration OIDC et GitHub explicite ; voir
+[`docs/gaming.md`](docs/gaming.md). Cette intégration est préparée sur une
+branche de travail et n'a pas été activée dans le portail de production.
+
 ## Démarrer en local
 
 ```sh
